@@ -87,6 +87,35 @@
     src.stop(t + 0.62);
   };
 
+  Audio.prototype.kick = function () {
+    if (!this.ctx || this.muted) return;
+    var t = this.ctx.currentTime;
+    var src = this.ctx.createBufferSource();
+    src.buffer = this._noiseBuffer(0.22);
+    var filter = this.ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = 1.6;
+    filter.frequency.setValueAtTime(400, t);
+    filter.frequency.exponentialRampToValueAtTime(2200, t + 0.18);
+    var gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    src.connect(filter).connect(gain).connect(this.master);
+    src.start(t);
+    src.stop(t + 0.24);
+
+    var osc = this.ctx.createOscillator();
+    var og = this.ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(90, t + 0.14);
+    og.gain.setValueAtTime(0.3, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    osc.connect(og).connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.18);
+  };
+
   Audio.prototype.thud = function () {
     if (!this.ctx || this.muted) return;
     var t = this.ctx.currentTime;

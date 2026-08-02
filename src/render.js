@@ -514,6 +514,31 @@
       ctx.beginPath();
       ctx.arc(hit.x, hit.y, 10, 0, U.TAU);
       ctx.stroke();
+    } else if (player.canKick()) {
+      // No anchor there, but a wall is within reach: show the push-off vector.
+      var ux = dx / d;
+      var uy = dy / d;
+      if (ux * player.wallNx < 0) ux = -ux;
+      if (uy > 0.3) uy = 0.3;
+      var n = Math.hypot(ux, uy) || 1;
+      ux /= n;
+      uy /= n;
+      var len = 92;
+      var ex = player.pos.x + ux * len;
+      var ey = player.pos.y + uy * len;
+      ctx.strokeStyle = "rgba(255,190,120,0.8)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(player.pos.x + ux * 16, player.pos.y + uy * 16);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      var a = Math.atan2(uy, ux);
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - Math.cos(a - 0.45) * 15, ey - Math.sin(a - 0.45) * 15);
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - Math.cos(a + 0.45) * 15, ey - Math.sin(a + 0.45) * 15);
+      ctx.stroke();
     } else {
       ctx.strokeStyle = "rgba(255,255,255,0.16)";
       ctx.lineWidth = 1;

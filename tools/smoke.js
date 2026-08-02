@@ -40,6 +40,65 @@ const URL = process.argv[2] || "http://localhost:8000/index.html";
     if (i === 3) await page.screenshot({ path: "/tmp/shot-swing.png" });
   }
 
+  // Wall push-off: drop the hero onto a facade, then kick with Space.
+  const kick = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const p = g.player;
+    // Pick a facade with no crane, sign or neighbour in the way.
+    const clear = (x, y, self) =>
+      !g.world.boxes.some(
+        (box) =>
+          box.hard &&
+          box !== self &&
+          x > box.x - 70 &&
+          x < box.x + box.w + 70 &&
+          y > box.y - 70 &&
+          y < box.y + box.h + 70
+      );
+    let b = null;
+    for (const q of g.world.buildings) {
+      if (q.h < 340 || q.x < p.pos.x + 400) continue;
+      const self = g.world.boxes.find((s) => s.x === q.x && s.y === q.top);
+      if (clear(q.x - 15, q.top + 140, self)) {
+        b = q;
+        break;
+      }
+    }
+    if (!b) return { skipped: true };
+
+    p.dead = false;
+    g.state = "playing";
+    p.release();
+    p.pos.x = b.x - 15;
+    p.pos.y = b.top + 140;
+    p.vel.x = 260;
+    p.vel.y = 0;
+    await new Promise((r) => setTimeout(r, 300));
+    const clinging = p.onWall;
+    const before = { x: p.vel.x, y: p.vel.y };
+    const nx = p.wallNx;
+    g.aim.sx = 0; // keep the reticle away from the shot direction
+    await new Promise((r) => setTimeout(r, 60));
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" }));
+    await new Promise((r) => setTimeout(r, 120));
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" }));
+    return {
+      clinging,
+      wallNormal: nx,
+      before,
+      after: { x: Math.round(p.vel.x), y: Math.round(p.vel.y) },
+    };
+  });
+
+  if (!kick.skipped) {
+    if (!kick.clinging) problems.push("player did not cling to the facade");
+    if (kick.after.x * kick.wallNormal <= 0) {
+      problems.push("kick did not push away from the wall: " + JSON.stringify(kick));
+    }
+    if (kick.after.y >= 0) problems.push("kick had no upward component");
+  }
+  console.log("wall kick:", JSON.stringify(kick));
+
   const state = await page.evaluate(() => ({
     state: window.SWGame.state,
     distance: Math.floor(window.SWGame.distance),

@@ -19,6 +19,8 @@
     this.onWall = false;
     this.wallNx = 0;
     this.wallTimer = 0;
+    this.kickTimer = 0;
+    this.kickCd = 0;
     this.dead = false;
     this.facing = 1;
     this.runPhase = 0;
@@ -36,6 +38,8 @@
     this.onRoof = false;
     this.onWall = false;
     this.wallTimer = 0;
+    this.kickTimer = 0;
+    this.kickCd = 0;
     this.dead = false;
     this.facing = 1;
     this.swingTime = 0;
@@ -125,13 +129,62 @@
     }
   };
 
-  Player.prototype._wallKick = function (input, game) {
-    this.vel.x = this.wallNx * C.WALL_JUMP_X;
-    this.vel.y = -C.WALL_JUMP_Y;
+  /** True while a push-off is available: recent wall contact, not on cooldown. */
+  Player.prototype.canKick = function () {
+    return !this.dead && !this.onRoof && this.kickTimer > 0 && this.kickCd <= 0;
+  };
+
+  Player.prototype._launch = function (ux, uy, power, game) {
+    var d = Math.hypot(ux, uy) || 1;
+    this.vel.x = (ux / d) * power;
+    this.vel.y = (uy / d) * power;
+    this.release();
     this.onWall = false;
     this.wallTimer = 0;
+    this.kickTimer = 0;
+    this.kickCd = C.KICK_COOLDOWN;
+    if (game) {
+      game.onKick(
+        this.pos.x - this.wallNx * C.PLAYER_R,
+        this.pos.y,
+        this.wallNx,
+        power
+      );
+    }
+  };
+
+  /**
+   * Push off the wall. Holding away from it flattens the kick into a sprint,
+   * holding into it turns the kick vertical for climbing a shaft.
+   */
+  Player.prototype.wallKick = function (input, game) {
+    var nx = this.wallNx;
+    var ux = nx;
+    var uy = -1;
+    if (input.moveX * nx > 0) {
+      ux = nx * 1.35;
+      uy = -0.66;
+    } else if (input.moveX * nx < 0) {
+      ux = nx * 0.34;
+      uy = -1.3;
+    }
+    // Reward speed you brought into the wall instead of erasing it.
+    var carry = this.vel.y < 0 ? -this.vel.y * 0.3 : 0;
+    this._launch(ux, uy, C.KICK_POWER + carry, game);
     input.jump = false;
-    if (game) game.onJump();
+  };
+
+  /** Push off in the aimed direction; never back into the wall or straight down. */
+  Player.prototype.kickToward = function (tx, ty, game) {
+    var ux = tx - this.pos.x;
+    var uy = ty - this.pos.y;
+    var d = Math.hypot(ux, uy) || 1;
+    ux /= d;
+    uy /= d;
+    if (ux * this.wallNx < 0) ux = -ux;
+    if (uy > 0.3) uy = 0.3;
+    if (Math.abs(ux) < 0.25) ux = this.wallNx * 0.25;
+    this._launch(ux, uy, C.KICK_POWER, game);
   };
 
   Player.prototype.update = function (dt, input, world, game) {
@@ -181,9 +234,16 @@
       this.onRoof = false;
     }
     this.wallTimer -= dt;
-    var touchingWall = this.wallTimer > 0;
-    // Clinging is the free-fall behaviour; the kick off a wall works always.
-    this.onWall = touchingWall && !attached && !this.onRoof;
+    this.kickTimer -= dt;
+    this.kickCd -= dt;
+    // Clinging needs current contact; the kick keeps a short coyote window and
+    // works even while hanging on a web.
+    this.onWall = this.wallTimer > 0 && !attached && !this.onRoof;
+
+    if (input.jump && this.canKick()) {
+      this.wallKick(input, game);
+      attached = false;
+    }
 
     // --- forces ------------------------------------------------------------
     this.vel.y += C.GRAVITY * dt;
@@ -204,11 +264,6 @@
       }
       this.runPhase += Math.abs(this.vel.x) * dt * 0.045;
     } else if (attached) {
-      if (input.jump && touchingWall) {
-        this.release();
-        this._wallKick(input, game);
-        attached = false;
-      }
       this.swingTime += dt;
       // Pumping: push along the tangent of the pendulum arc.
       var rx = this.pos.x - this.anchor.x;
@@ -231,12 +286,12 @@
         );
       }
     } else if (this.onWall) {
-      // Spider grip: cling, crawl, and kick off.
-      this.vel.x = 0;
+      // Spider grip: keep leaning into the facade, otherwise zeroing the
+      // horizontal speed would break contact and drop the hero next frame.
+      this.vel.x = -this.wallNx * 25;
       if (input.reel > 0) this.vel.y = -C.WALL_CLIMB;
       else if (input.reel < 0) this.vel.y = C.WALL_CLIMB;
       else this.vel.y = Math.min(this.vel.y, C.WALL_SLIDE);
-      if (input.jump) this._wallKick(input, game);
     } else {
       this.vel.x += input.moveX * C.AIR_ACCEL * dt;
     }
@@ -311,7 +366,8 @@
         this.vel.y *= bleed;
         this.onWall = true;
         this.wallNx = hit.nx;
-        this.wallTimer = 0.12;
+        this.wallTimer = C.WALL_GRIP;
+        this.kickTimer = C.KICK_COYOTE;
         if (game && impact > 120 * C.PACE) game.onScrape(this.pos.x, this.pos.y, impact);
       }
     }

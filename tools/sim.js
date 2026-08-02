@@ -69,6 +69,7 @@ function run(seed, seconds) {
     onLand() {},
     onJump() {},
     onScrape() {},
+    onKick() {},
   };
 
   const input = { moveX: 1, reel: 0, jump: false };
@@ -94,6 +95,8 @@ function run(seed, seconds) {
       const past = player.pos.x > player.anchor.x - 20;
       const rising = player.vel.y < -60 * C.PACE;
       stuck = player.speed() < 150 * C.PACE ? stuck + dt : 0;
+      // A human would kick off the wall instead of hanging there.
+      input.jump = stuck > 0.25 && player.canKick();
       if ((past && rising) || (hold > 1.4 && rising) || stuck > 0.4) {
         player.release();
         hold = 0;

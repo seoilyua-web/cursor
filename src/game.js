@@ -179,6 +179,13 @@
     game.cam.shake = Math.max(game.cam.shake, U.clamp((impact || 0) / (90 * C.PACE), 0, 9));
   };
 
+  game.onKick = function (x, y, nx, power) {
+    SW.audio.kick();
+    burst(x, y, 10, "#cfe0ff", 190 * C.PACE);
+    ring(x, y, "rgba(200,225,255,0.85)");
+    game.cam.shake = Math.max(game.cam.shake, 6);
+  };
+
   game.onScrape = function (x, y, impact) {
     burst(x, y, 3, "#ffd08a", (90 + impact * 0.2) * C.PACE);
     game.cam.shake = Math.max(game.cam.shake, U.clamp(impact / (140 * C.PACE), 0, 7));
@@ -437,7 +444,8 @@
         return;
       }
       if (game.state !== "playing") return;
-      if (game.player.onRoof) {
+      // Space is one button: jump, push off a wall, or shoot a web upward.
+      if (game.player.onRoof || game.player.canKick()) {
         game.input.jump = true;
       } else if (game.player.web !== "attached") {
         game.spaceWeb = game.player.autoShoot(game.world);
@@ -483,6 +491,13 @@
     }
   });
 
+  /** A press either sticks a web or, with no anchor there, pushes off the wall. */
+  function fireOrKick() {
+    var p = game.player;
+    if (p.shoot(game.aim.x, game.aim.y, game.world)) return;
+    if (p.canKick()) p.kickToward(game.aim.x, game.aim.y, game);
+  }
+
   function pointerAim(clientX, clientY) {
     var rect = canvas.getBoundingClientRect();
     game.aim.sx = clientX - rect.left;
@@ -500,7 +515,7 @@
     if (game.state !== "playing") return;
     pointerAim(e.clientX, e.clientY);
     game.pointerDown = true;
-    game.player.shoot(game.aim.x, game.aim.y, game.world);
+    fireOrKick();
   });
 
   global.addEventListener("mouseup", function () {
@@ -530,7 +545,7 @@
       var t = e.changedTouches[0];
       pointerAim(t.clientX, t.clientY);
       game.pointerDown = true;
-      game.player.shoot(game.aim.x, game.aim.y, game.world);
+      fireOrKick();
     },
     { passive: false }
   );
