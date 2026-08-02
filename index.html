@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>ПАУТИНА — гравитационный раннер</title>
+    <meta name="theme-color" content="#0a0a18" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game"></canvas>
+
+      <div id="hud" class="hidden">
+        <div class="hud-left">
+          <div class="stat big">
+            <span id="hud-distance">0</span><span class="unit">м</span>
+          </div>
+          <div class="stat">
+            <span class="label">счёт</span><span id="hud-score">0</span>
+          </div>
+        </div>
+        <div class="hud-right">
+          <div class="stat">
+            <span class="label">рекорд</span><span id="hud-best">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">скорость</span
+            ><span id="hud-speed">0</span><span class="unit">км/ч</span>
+          </div>
+        </div>
+        <div id="hud-combo" class="combo hidden">x1.0</div>
+        <div id="hud-hint" class="hint">удерживай мышь — паутина, отпусти — полёт</div>
+      </div>
+
+      <div id="overlay">
+        <div id="start-card" class="card">
+          <h1>ПАУТИНА</h1>
+          <p class="tagline">
+            Гравитация тянет вниз. Всё, что у тебя есть, — маятник и крыши.
+          </p>
+          <ul class="controls">
+            <li><b>Мышь / палец</b><span>прицел</span></li>
+            <li><b>Зажать</b><span>выстрелить паутину</span></li>
+            <li><b>Отпустить</b><span>сорваться в полёт</span></li>
+            <li><b>A / D</b><span>раскачка и управление в воздухе</span></li>
+            <li><b>W / S</b><span>подтянуть / отпустить нить</span></li>
+            <li><b>Пробел</b><span>прыжок с крыши, авто-паутина в полёте</span></li>
+            <li><b>R</b><span>заново</span><b>M</b><span>звук</span></li>
+          </ul>
+          <button id="btn-play" class="btn">Играть</button>
+          <p class="fine">Земля — это смерть. Стены — тоже.</p>
+        </div>
+
+        <div id="dead-card" class="card hidden">
+          <h2 id="dead-title">Приземление вышло так себе</h2>
+          <div class="results">
+            <div class="result">
+              <span class="label">дистанция</span>
+              <b><span id="res-distance">0</span> м</b>
+            </div>
+            <div class="result">
+              <span class="label">счёт</span>
+              <b id="res-score">0</b>
+            </div>
+            <div class="result">
+              <span class="label">рекорд</span>
+              <b id="res-best">0</b>
+            </div>
+          </div>
+          <div id="res-new" class="new-best hidden">новый рекорд</div>
+          <button id="btn-retry" class="btn">Ещё раз</button>
+          <p class="fine">или нажми R</p>
+        </div>
+
+        <div id="pause-card" class="card hidden">
+          <h2>Пауза</h2>
+          <p class="fine">P — продолжить</p>
+        </div>
+      </div>
+    </div>
+
+    <script src="src/util.js"></script>
+    <script src="src/audio.js"></script>
+    <script src="src/world.js"></script>
+    <script src="src/player.js"></script>
+    <script src="src/render.js"></script>
+    <script src="src/game.js"></script>
+  </body>
+</html>
