@@ -50,6 +50,19 @@
     return x - Math.floor(x);
   }
 
+  function mixHex(a, b, t) {
+    var ar = parseInt(a.slice(1, 3), 16);
+    var ag = parseInt(a.slice(3, 5), 16);
+    var ab = parseInt(a.slice(5, 7), 16);
+    var br = parseInt(b.slice(1, 3), 16);
+    var bg = parseInt(b.slice(3, 5), 16);
+    var bb = parseInt(b.slice(5, 7), 16);
+    var r = Math.round(lerp(ar, br, t));
+    var g = Math.round(lerp(ag, bg, t));
+    var bl = Math.round(lerp(ab, bb, t));
+    return "rgb(" + r + "," + g + "," + bl + ")";
+  }
+
   SW.util = {
     TAU: TAU,
     clamp: clamp,
@@ -58,47 +71,76 @@
     mulberry32: mulberry32,
     Rng: Rng,
     hash01: hash01,
+    mixHex: mixHex,
   };
 
-  /**
-   * Single pace knob. Velocities scale with PACE and accelerations with PACE²,
-   * so every trajectory keeps its exact shape and only takes longer to fly.
-   * 1 = original pace, lower = calmer.
-   */
-  var PACE = 0.7;
-  var V = PACE;
-  var A = PACE * PACE;
+  // ---------------------------------------------------------------------------
+  // Tunables
+  //
+  // Values tagged A scale with PACE² (accelerations), V with PACE (velocities)
+  // and the rest stay in pixels or seconds. Keeping the split explicit means the
+  // pace slider never changes the shape of a trajectory, only its duration.
+  // ---------------------------------------------------------------------------
 
-  SW.CONST = {
-    PACE: PACE,
-    GRAVITY: 2000 * A,
-    MAX_ROPE: 560,
-    MIN_ROPE: 80,
-    REEL_SPEED: 500 * V,
-    SWING_ACCEL: 1350 * A,
-    AIR_ACCEL: 780 * A,
-    RUN_ACCEL: 2600 * A,
-    RUN_MAX: 620 * V,
-    JUMP_VELOCITY: 940 * V,
-    WALL_SLIDE: 150 * V,
-    WALL_CLIMB: 280 * V,
-    WALL_JUMP_X: 680 * V,
-    WALL_JUMP_Y: 900 * V,
-    KICK_POWER: 980 * V,
-    KICK_COYOTE: 0.22,
-    KICK_COOLDOWN: 0.16,
-    WALL_GRIP: 0.09,
-    MAX_SPEED: 2700 * V,
-    FATAL_IMPACT: 950 * V,
-    DRAG_FREE: 0.09 * V,
-    DRAG_ATTACHED: 0.035 * V,
-    PLAYER_R: 13,
-    WEB_RANGE: 580,
-    MIN_ANCHOR_RISE: 45,
-    WEB_SPEED: 4200 * V,
-    LAUNCH_VX: 620 * V,
-    LAUNCH_VY: -320 * V,
-    PIXELS_PER_METER: 10,
-    GROUND_Y: 0,
+  var BASE = {
+    A: {
+      GRAVITY: 2000,
+      SWING_ACCEL: 1350,
+      AIR_ACCEL: 780,
+      RUN_ACCEL: 2600,
+      WIND_MAX: 340,
+    },
+    V: {
+      REEL_SPEED: 500,
+      AUTO_REEL: 300,
+      RUN_MAX: 620,
+      JUMP_VELOCITY: 940,
+      WALL_SLIDE: 150,
+      WALL_CLIMB: 280,
+      WALL_JUMP_X: 680,
+      WALL_JUMP_Y: 900,
+      MAX_SPEED: 2700,
+      FATAL_IMPACT: 950,
+      WEB_SPEED: 4200,
+      LAUNCH_VX: 620,
+      LAUNCH_VY: -320,
+      KICK_POWER: 980,
+      DASH_POWER: 1180,
+      DRAG_FREE: 0.09,
+      DRAG_ATTACHED: 0.035,
+      HIT_KNOCKBACK: 620,
+    },
+    FIXED: {
+      MAX_ROPE: 560,
+      MIN_ROPE: 80,
+      PLAYER_R: 13,
+      WEB_RANGE: 580,
+      MIN_ANCHOR_RISE: 45,
+      PIXELS_PER_METER: 10,
+      GROUND_Y: 0,
+      KICK_COYOTE: 0.22,
+      KICK_COOLDOWN: 0.16,
+      WALL_GRIP: 0.09,
+      DASH_COOLDOWN: 7,
+      STUN_TIME: 0.45,
+      LOW_ALTITUDE: 170,
+      GRAZE_DIST: 34,
+    },
   };
+
+  var CONST = { PACE: 1 };
+  SW.CONST = CONST;
+
+  /** Rebuild derived constants; safe to call at runtime from the settings. */
+  SW.setPace = function (pace) {
+    pace = clamp(pace, 0.35, 1.4);
+    CONST.PACE = pace;
+    var key;
+    for (key in BASE.A) CONST[key] = BASE.A[key] * pace * pace;
+    for (key in BASE.V) CONST[key] = BASE.V[key] * pace;
+    for (key in BASE.FIXED) CONST[key] = BASE.FIXED[key];
+    return pace;
+  };
+
+  SW.setPace(0.7);
 })(window);

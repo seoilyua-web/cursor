@@ -7,6 +7,7 @@
     this.ctx = null;
     this.master = null;
     this.muted = false;
+    this.volume = 0.5;
   }
 
   Audio.prototype.unlock = function () {
@@ -18,14 +19,42 @@
     if (!Ctor) return;
     this.ctx = new Ctor();
     this.master = this.ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.5;
+    this.master.gain.value = this.muted ? 0 : this.volume;
     this.master.connect(this.ctx.destination);
   };
 
   Audio.prototype.toggleMute = function () {
     this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
+    this._applyGain();
     return this.muted;
+  };
+
+  Audio.prototype.setVolume = function (v) {
+    this.volume = Math.max(0, Math.min(1, v));
+    this._applyGain();
+  };
+
+  Audio.prototype._applyGain = function () {
+    if (this.master) this.master.gain.value = this.muted ? 0 : this.volume;
+  };
+
+  Audio.prototype.dash = function () {
+    if (!this.ctx || this.muted) return;
+    var t = this.ctx.currentTime;
+    var osc = this.ctx.createOscillator();
+    var gain = this.ctx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.exponentialRampToValueAtTime(900, t + 0.18);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.22, t + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+    var filter = this.ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(1600, t);
+    osc.connect(filter).connect(gain).connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.28);
   };
 
   Audio.prototype._noiseBuffer = function (seconds) {

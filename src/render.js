@@ -7,19 +7,26 @@
 
   var Render = {};
 
-  var SKY_TOP = "#080a1c";
-  var SKY_MID = "#2a1b48";
-  var SKY_LOW = "#6b2f52";
-  var SKY_HORIZON = "#c2603f";
+  Render.palette = function (d) {
+    var a = d.def.sky;
+    var b = d.next.sky;
+    var t = d.blend;
+    return [
+      U.mixHex(a[0], b[0], t),
+      U.mixHex(a[1], b[1], t),
+      U.mixHex(a[2], b[2], t),
+      U.mixHex(a[3], b[3], t),
+    ];
+  };
 
-  Render.sky = function (ctx, cam, w, h) {
+  Render.sky = function (ctx, cam, w, h, sky) {
     var horizon = (0 - cam.y) * cam.zoom + h * 0.5;
     var g = ctx.createLinearGradient(0, 0, 0, h);
     var t = U.clamp(horizon / h, 0.15, 1.15);
-    g.addColorStop(0, SKY_TOP);
-    g.addColorStop(Math.max(0.01, t * 0.45), SKY_MID);
-    g.addColorStop(Math.max(0.02, t * 0.82), SKY_LOW);
-    g.addColorStop(Math.min(1, Math.max(0.03, t)), SKY_HORIZON);
+    g.addColorStop(0, sky[0]);
+    g.addColorStop(Math.max(0.01, t * 0.45), sky[1]);
+    g.addColorStop(Math.max(0.02, t * 0.82), sky[2]);
+    g.addColorStop(Math.min(1, Math.max(0.03, t)), sky[3]);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
   };
@@ -81,9 +88,16 @@
     ctx.fill();
   }
 
-  Render.parallax = function (ctx, cam, w, h) {
-    skylineLayer(ctx, cam, w, h, 0.16, 2.7, 190, 140, 420, "rgba(24,26,58,0.85)");
-    skylineLayer(ctx, cam, w, h, 0.34, 5.3, 240, 200, 620, "rgba(15,17,42,0.92)");
+  Render.parallax = function (ctx, cam, w, h, d) {
+    skylineLayer(ctx, cam, w, h, 0.16, 2.7, 190, 140, 420, d.def.far);
+    skylineLayer(ctx, cam, w, h, 0.34, 5.3, 240, 200, 620, d.def.mid);
+    if (d.blend > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = d.blend;
+      skylineLayer(ctx, cam, w, h, 0.16, 2.7, 190, 140, 420, d.next.far);
+      skylineLayer(ctx, cam, w, h, 0.34, 5.3, 240, 200, 620, d.next.mid);
+      ctx.restore();
+    }
   };
 
   Render.ground = function (ctx, cam, w, h) {
@@ -181,16 +195,18 @@
     ctx.lineTo(p.x, mastTop - 34);
     ctx.stroke();
 
-    // Hook on a swinging cable.
-    var sway = Math.sin(time * 0.7 + p.x * 0.01) * 6;
-    ctx.strokeStyle = "rgba(255,255,255,0.35)";
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(p.hookX, mastTop);
-    ctx.lineTo(p.hookX + sway, mastTop + p.hookLen);
-    ctx.stroke();
-    ctx.fillStyle = "#e8b23c";
-    ctx.fillRect(p.hookX + sway - 4, mastTop + p.hookLen, 8, 9);
+    // Empty hook on a swinging cable; loaded cranes draw their own.
+    if (!p.load) {
+      var sway = Math.sin(time * 0.7 + p.x * 0.01) * 6;
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(p.hookX, mastTop);
+      ctx.lineTo(p.hookX + sway, mastTop + p.hookLen);
+      ctx.stroke();
+      ctx.fillStyle = "#e8b23c";
+      ctx.fillRect(p.hookX + sway - 4, mastTop + p.hookLen, 8, 9);
+    }
 
     ctx.fillStyle = "rgba(255,90,120,0.9)";
     ctx.beginPath();
@@ -308,6 +324,217 @@
     ctx.restore();
   }
 
+  function drawCraneLoad(ctx, p) {
+    var lx = p.hookX + Math.sin(p.load.angle) * p.load.len;
+    var ly = p.jibY + Math.cos(p.load.angle) * p.load.len;
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(p.hookX, p.jibY);
+    ctx.lineTo(lx, ly);
+    ctx.stroke();
+    var r = p.load.r;
+    ctx.fillStyle = "#3a3f52";
+    ctx.fillRect(lx - r, ly - r * 0.75, r * 2, r * 1.5);
+    ctx.strokeStyle = "#ffb03a";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(lx - r, ly - r * 0.75);
+    ctx.lineTo(lx + r, ly + r * 0.75);
+    ctx.moveTo(lx + r, ly - r * 0.75);
+    ctx.lineTo(lx - r, ly + r * 0.75);
+    ctx.stroke();
+  }
+
+  function drawHeli(ctx, z, time) {
+    var blade = time * 28 + z.phase;
+    // Search beam sweeping the street below.
+    var sweep = Math.sin(time * 0.9 + z.phase) * 0.42;
+    ctx.save();
+    ctx.translate(z.x, z.y);
+    var grad = ctx.createLinearGradient(0, 0, 0, z.beam);
+    grad.addColorStop(0, "rgba(255,240,190,0.24)");
+    grad.addColorStop(1, "rgba(255,240,190,0)");
+    ctx.save();
+    ctx.rotate(sweep);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(-8, 8);
+    ctx.lineTo(8, 8);
+    ctx.lineTo(z.beam * 0.42, z.beam);
+    ctx.lineTo(-z.beam * 0.42, z.beam);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = "#20263c";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 30, 15, 0, 0, U.TAU);
+    ctx.fill();
+    ctx.fillRect(20, -4, 34, 6);
+    ctx.fillStyle = "#0d1120";
+    ctx.fillRect(48, -14, 5, 18);
+    ctx.fillStyle = "rgba(120,200,255,0.75)";
+    ctx.beginPath();
+    ctx.ellipse(-13, -2, 9, 7, 0, 0, U.TAU);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(200,215,255,0.65)";
+    ctx.lineWidth = 2.5;
+    var span = 40 * Math.cos(blade);
+    ctx.beginPath();
+    ctx.moveTo(-span, -17);
+    ctx.lineTo(span, -17);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -17);
+    ctx.lineTo(0, -8);
+    ctx.stroke();
+
+    ctx.fillStyle = Math.sin(time * 6) > 0 ? "#ff3b6b" : "rgba(255,59,107,0.25)";
+    ctx.beginPath();
+    ctx.arc(0, 13, 3.5, 0, U.TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawDrone(ctx, z, time) {
+    ctx.save();
+    ctx.translate(z.x, z.y);
+    ctx.rotate(Math.sin(time * 2 + z.phase) * 0.12);
+    ctx.strokeStyle = "#39405e";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-14, -6);
+    ctx.lineTo(14, 6);
+    ctx.moveTo(14, -6);
+    ctx.lineTo(-14, 6);
+    ctx.stroke();
+    ctx.fillStyle = "#1b2138";
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, U.TAU);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,80,110,0.9)";
+    ctx.beginPath();
+    ctx.arc(0, 0, 3, 0, U.TAU);
+    ctx.fill();
+    var spin = time * 30 + z.phase;
+    ctx.strokeStyle = "rgba(190,210,255,0.5)";
+    ctx.lineWidth = 1.5;
+    for (var i = 0; i < 4; i++) {
+      var sx = i < 2 ? -14 : 14;
+      var sy = i % 2 === 0 ? -6 : 6;
+      var r = 7 * Math.abs(Math.cos(spin + i));
+      ctx.beginPath();
+      ctx.moveTo(sx - r, sy);
+      ctx.lineTo(sx + r, sy);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  Render.hazards = function (ctx, world, cam, w, time) {
+    var half = w / (2 * cam.zoom) + 300;
+    ctx.save();
+    for (var i = 0; i < world.hazards.length; i++) {
+      var z = world.hazards[i];
+      if (z.x < cam.x - half || z.x > cam.x + half) continue;
+      if (z.type === "heli") drawHeli(ctx, z, time);
+      else drawDrone(ctx, z, time);
+    }
+    ctx.restore();
+  };
+
+  /**
+   * Ghost arc of the swing the aimed anchor would produce. A short red arc is
+   * the useful case: it means this anchor throws you into a wall or the street.
+   */
+  Render.preview = function (ctx, points) {
+    if (!points.length) return;
+    ctx.save();
+    ctx.strokeStyle = "rgba(143,240,255,0.35)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (var j = 1; j < points.length; j++) ctx.lineTo(points[j].x, points[j].y);
+    ctx.stroke();
+
+    ctx.shadowColor = "rgba(143,240,255,0.8)";
+    ctx.shadowBlur = 6;
+    for (var i = 0; i < points.length; i++) {
+      var t = 1 - i / points.length;
+      ctx.globalAlpha = 0.3 + t * 0.55;
+      ctx.fillStyle = "#8ff0ff";
+      ctx.beginPath();
+      ctx.arc(points[i].x, points[i].y, 2.4 + t * 2.6, 0, U.TAU);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+
+    if (points.release) {
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = "#8ff0ff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(points.release.x, points.release.y, 9, 0, U.TAU);
+      ctx.stroke();
+      ctx.globalAlpha = 0.45;
+      ctx.beginPath();
+      ctx.arc(points.release.x, points.release.y, 14, 0, U.TAU);
+      ctx.stroke();
+    }
+
+    var last = points[points.length - 1];
+    var bad = points.stop === "wall" || points.stop === "ground";
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = points.stop === "ground" ? "#ff5a5a" : "#ffa04a";
+    ctx.lineWidth = 2.4;
+    if (bad) {
+      var r = 7;
+      ctx.beginPath();
+      ctx.moveTo(last.x - r, last.y - r);
+      ctx.lineTo(last.x + r, last.y + r);
+      ctx.moveTo(last.x + r, last.y - r);
+      ctx.lineTo(last.x - r, last.y + r);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  Render.weather = function (ctx, cam, w, h, weather, time) {
+    if (weather.rain > 0.02) {
+      var n = Math.floor(weather.rain * 160);
+      var slant = weather.wind * 0.55;
+      ctx.save();
+      ctx.strokeStyle = "rgba(180,210,255,0.35)";
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      for (var i = 0; i < n; i++) {
+        var seedX = U.hash01(i * 3.7);
+        var seedY = U.hash01(i * 9.1);
+        var speed = 900 + seedY * 700;
+        var x = ((seedX * w + cam.x * -0.35 + slant * time * 260) % w + w) % w;
+        var y = ((seedY * h + time * speed) % (h + 60)) - 30;
+        var len = 12 + seedY * 16;
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + slant * len, y + len);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    if (weather.fog > 0.02) {
+      var horizon = (0 - cam.y) * cam.zoom + h * 0.5;
+      var g = ctx.createLinearGradient(0, horizon - 420 * cam.zoom, 0, horizon);
+      g.addColorStop(0, "rgba(150,165,200,0)");
+      g.addColorStop(1, "rgba(150,165,200," + (weather.fog * 0.42).toFixed(3) + ")");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, Math.max(0, horizon));
+      ctx.fillStyle = "rgba(150,165,200," + (weather.fog * 0.1).toFixed(3) + ")";
+      ctx.fillRect(0, 0, w, h);
+    }
+  };
+
   Render.props = function (ctx, world, cam, w, time) {
     var half = w / (2 * cam.zoom) + 400;
     ctx.save();
@@ -316,7 +543,10 @@
       var p = world.props[i];
       var px = p.type === "wire" ? p.x0 : p.x;
       if (px < cam.x - half || px > cam.x + half) continue;
-      if (p.type === "crane") drawCrane(ctx, p, time);
+      if (p.type === "crane") {
+        drawCrane(ctx, p, time);
+        if (p.load) drawCraneLoad(ctx, p);
+      }
       else if (p.type === "sign") drawSign(ctx, p, time);
       else if (p.type === "wire") drawWire(ctx, p);
       else if (p.type === "blimp") drawBlimp(ctx, p, time);

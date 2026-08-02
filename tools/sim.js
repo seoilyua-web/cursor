@@ -70,6 +70,8 @@ function run(seed, seconds) {
     onJump() {},
     onScrape() {},
     onKick() {},
+    onDash() {},
+    onHazardHit() {},
   };
 
   const input = { moveX: 1, reel: 0, jump: false };
@@ -134,6 +136,10 @@ function run(seed, seconds) {
         )}, ${player.vel.y.toFixed(0)}) web=${player.web} roof=${player.onRoof}`
       );
     }
+    const hz = world.hazardAt(player.pos.x, player.pos.y, C.PLAYER_R);
+    if (hz) player.hit(hz, game);
+    world.clearance(player.pos.x, player.pos.y, C.PLAYER_R + C.GRAZE_DIST);
+    world.update(dt, player.pos.x);
     world.ensureUpTo(player.pos.x + 3000);
 
     for (const o of world.orbs) {

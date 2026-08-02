@@ -6,17 +6,94 @@
   var C = SW.CONST;
 
   var HIGH_ANCHOR = 760; // height above the street that always stays reachable
-
-  var FACADES = [
-    ["#1b2540", "#0d1428"],
-    ["#232041", "#100e26"],
-    ["#182c3c", "#0b1722"],
-    ["#2a1f36", "#140e1e"],
-  ];
+  var DISTRICT_LEN = 3400;
 
   var SIGN_HUES = ["#ff3b6b", "#43e5ff", "#ffb03a", "#8b5cff", "#3ee08f"];
 
-  function buildSprite(b, rng) {
+  /**
+   * Districts change both the skyline geometry and the palette, so the tactics
+   * change with them: towers give short arcs, the outskirts force long ones.
+   */
+  var DISTRICTS = [
+    {
+      id: "centre",
+      name: "Деловой центр",
+      w: [130, 235],
+      h: [420, 780],
+      tower: [820, 1250],
+      towerChance: 0.3,
+      gap: [210, 400],
+      crane: 0.2,
+      sign: 0.4,
+      wire: 0.4,
+      facades: [
+        ["#1b2540", "#0d1428"],
+        ["#232041", "#100e26"],
+      ],
+      sky: ["#080a1c", "#2a1b48", "#6b2f52", "#c2603f"],
+      far: "rgba(24,26,58,0.85)",
+      mid: "rgba(15,17,42,0.92)",
+    },
+    {
+      id: "industrial",
+      name: "Промзона",
+      w: [170, 320],
+      h: [170, 360],
+      tower: [520, 760],
+      towerChance: 0.14,
+      gap: [320, 580],
+      crane: 0.6,
+      sign: 0.1,
+      wire: 0.75,
+      facades: [
+        ["#1c2b2e", "#0b1417"],
+        ["#26261f", "#111109"],
+      ],
+      sky: ["#050a12", "#123043", "#2f5b5c", "#9e7a3c"],
+      far: "rgba(18,34,40,0.85)",
+      mid: "rgba(9,20,26,0.92)",
+    },
+    {
+      id: "residential",
+      name: "Спальный район",
+      w: [120, 210],
+      h: [200, 350],
+      tower: [430, 600],
+      towerChance: 0.12,
+      gap: [270, 470],
+      crane: 0.14,
+      sign: 0.2,
+      wire: 0.85,
+      facades: [
+        ["#1e2440", "#0e1024"],
+        ["#242a4a", "#12142c"],
+      ],
+      sky: ["#060814", "#1c1f4a", "#3f3b78", "#7d5f9c"],
+      far: "rgba(26,28,64,0.85)",
+      mid: "rgba(14,16,40,0.92)",
+    },
+    {
+      id: "oldtown",
+      name: "Старый город",
+      w: [95, 170],
+      h: [250, 430],
+      tower: [520, 800],
+      towerChance: 0.22,
+      gap: [180, 320],
+      crane: 0.1,
+      sign: 0.45,
+      wire: 0.7,
+      facades: [
+        ["#2f2333", "#170f1c"],
+        ["#33261f", "#180f0c"],
+      ],
+      sky: ["#0b0714", "#3a1d34", "#7d3b3a", "#d08243"],
+      far: "rgba(42,28,46,0.85)",
+      mid: "rgba(24,15,28,0.92)",
+    },
+  ];
+
+  function buildSprite(b, rng, district) {
     var totalH = b.h + b.antennaH;
     var cv = document.createElement("canvas");
     cv.width = Math.ceil(b.w);
@@ -24,23 +101,20 @@
     var g = cv.getContext("2d");
     var top = b.antennaH; // roof line inside the sprite
 
-    var pal = rng.pick(FACADES);
+    var pal = rng.pick(district.facades);
     var grad = g.createLinearGradient(0, top, b.w, totalH);
     grad.addColorStop(0, pal[0]);
     grad.addColorStop(1, pal[1]);
     g.fillStyle = grad;
     g.fillRect(0, top, b.w, b.h);
 
-    // Lit edge to separate silhouettes against the sky.
     g.fillStyle = "rgba(140,180,255,0.16)";
     g.fillRect(0, top, b.w, 2);
     g.fillRect(0, top, 2, b.h);
 
-    // Windows.
     var cw = 11;
     var ch = 15;
-    var padX = 8;
-    var cols = Math.max(1, Math.floor((b.w - padX * 2) / (cw + 6)));
+    var cols = Math.max(1, Math.floor((b.w - 16) / (cw + 6)));
     var offX = (b.w - cols * (cw + 6) + 6) / 2;
     for (var y = top + 16; y < totalH - 14; y += ch + 9) {
       var floorLit = rng.chance(0.55);
@@ -59,7 +133,6 @@
       }
     }
 
-    // Rooftop clutter.
     if (b.w > 90 && rng.chance(0.7)) {
       var tw = rng.range(18, 34);
       var th = rng.range(12, 26);
@@ -70,7 +143,6 @@
       g.fillRect(tx, top - th, tw, 2);
     }
 
-    // Antenna mast with a blinking-light base.
     if (b.antennaH > 0) {
       var ax = b.ax - b.x;
       g.fillStyle = "#0a0f1e";
@@ -88,6 +160,7 @@
     this.rng = new U.Rng(seed || 1337);
     this.buildings = [];
     this.props = [];
+    this.hazards = [];
     this.boxes = [];
     this.orbs = [];
     this.startX = 0;
@@ -96,12 +169,19 @@
     this.lastHighX = 0;
     this.prev = null;
     this.nextBlimpX = 0;
+    this.nextHazardX = 0;
+    this.weather = { wind: 0, rain: 0, fog: 0 };
+    this.target = { wind: 0, rain: 0, fog: 0 };
+    this.districtIndex = 0;
+    this.hazardsOn = true;
+    this.weatherOn = true;
   }
 
   World.prototype.reset = function (seed) {
     this.rng = new U.Rng(seed);
     this.buildings.length = 0;
     this.props.length = 0;
+    this.hazards.length = 0;
     this.boxes.length = 0;
     this.orbs.length = 0;
     this.nextX = -400;
@@ -110,17 +190,90 @@
     this.lastHighX = -400;
     this.prev = null;
     this.nextBlimpX = 1800;
-    // A guaranteed tall launch pad so every run starts in the air.
+    this.nextHazardX = 2600;
+    this.weather = { wind: 0, rain: 0, fog: 0 };
+    this.target = { wind: 0, rain: 0, fog: 0 };
+    this.districtIndex = 0;
     var pad = this._push(300, 620, true);
     this.nextX = pad.x + pad.w + 240;
     this.ensureUpTo(3000);
   };
 
   // ---------------------------------------------------------------------------
-  // Geometry helpers
+  // Districts and weather
   // ---------------------------------------------------------------------------
 
-  /** Solid rectangle. `hard` boxes stop the player, soft ones only catch webs. */
+  /** Index of the district at world position x, plus the blend into the next. */
+  World.prototype.districtAt = function (x) {
+    var raw = (x - this.startX) / DISTRICT_LEN;
+    var i = Math.floor(Math.max(0, raw));
+    var frac = Math.max(0, raw) - i;
+    return {
+      def: DISTRICTS[i % DISTRICTS.length],
+      next: DISTRICTS[(i + 1) % DISTRICTS.length],
+      blend: U.clamp((frac - 0.82) / 0.18, 0, 1),
+      index: i,
+    };
+  };
+
+  World.prototype._rollWeather = function (index) {
+    if (!this.weatherOn) {
+      this.target.wind = 0;
+      this.target.rain = 0;
+      this.target.fog = 0;
+      return;
+    }
+    var rng = new U.Rng((index + 1) * 9176 + this.id);
+    var def = DISTRICTS[index % DISTRICTS.length];
+    var gusty = def.id === "industrial" || def.id === "residential";
+    this.target.wind = rng.chance(gusty ? 0.75 : 0.45)
+      ? rng.range(-1, 1) * (gusty ? 1 : 0.6)
+      : 0;
+    this.target.rain = rng.chance(0.3) ? rng.range(0.35, 1) : 0;
+    this.target.fog = rng.chance(0.28) ? rng.range(0.25, 0.8) : 0;
+  };
+
+  World.prototype.update = function (dt, playerX) {
+    var d = this.districtAt(playerX);
+    if (d.index !== this.districtIndex) {
+      this.districtIndex = d.index;
+      this._rollWeather(d.index);
+    }
+    var w = this.weather;
+    w.wind = U.damp(w.wind, this.target.wind, 0.7, dt);
+    w.rain = U.damp(w.rain, this.target.rain, 0.5, dt);
+    w.fog = U.damp(w.fog, this.target.fog, 0.4, dt);
+
+    for (var i = 0; i < this.props.length; i++) {
+      var p = this.props[i];
+      if (p.type === "blimp") p.x += p.vx * dt;
+      else if (p.type === "crane" && p.load) {
+        // Pendulum load: θ'' = -(g / L) sin θ, nudged by the wind.
+        var g = C.GRAVITY;
+        var acc = (-g / p.load.len) * Math.sin(p.load.angle);
+        acc += w.wind * C.WIND_MAX * 0.0016 * Math.cos(p.load.angle);
+        p.load.vel += acc * dt;
+        p.load.vel *= Math.exp(-0.25 * dt);
+        p.load.angle += p.load.vel * dt;
+      }
+    }
+
+    for (var h = 0; h < this.hazards.length; h++) {
+      var z = this.hazards[h];
+      z.x += z.vx * dt;
+      z.phase += dt;
+      if (z.type === "drone") {
+        z.y = z.baseY + Math.sin(z.phase * 1.5) * z.amp;
+      } else if (z.type === "heli") {
+        z.y = z.baseY + Math.sin(z.phase * 0.8) * 26;
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Building blocks
+  // ---------------------------------------------------------------------------
+
   World.prototype._box = function (x, y, w, h, hard, prop) {
     var box = { x: x, y: y, w: w, h: h, hard: !!hard, prop: prop || null };
     this.boxes.push(box);
@@ -129,6 +282,7 @@
 
   World.prototype._push = function (w, h, isStart, forceMast) {
     var rng = this.rng;
+    var district = this.districtAt(this.nextX).def;
     var b = {
       id: this.id++,
       x: this.nextX,
@@ -138,13 +292,12 @@
       antennaH: 0,
       ax: 0,
     };
-    // Masts double as guaranteed high anchor points.
     if (forceMast || (h > 560 ? rng.chance(0.9) : rng.chance(0.6))) {
       b.antennaH = h > 560 ? rng.range(140, 280) : rng.range(90, 210);
       if (forceMast) b.antennaH = Math.max(b.antennaH, HIGH_ANCHOR - h + 40);
     }
     b.ax = b.x + b.w * rng.range(0.25, 0.75);
-    b.sprite = buildSprite(b, rng);
+    b.sprite = buildSprite(b, rng, district);
     this.buildings.push(b);
     this._box(b.x, b.top, b.w, h, true);
     if (b.antennaH > 0) {
@@ -153,10 +306,6 @@
     if (isStart) this.startX = b.x + b.w * 0.5;
     return b;
   };
-
-  // ---------------------------------------------------------------------------
-  // Props: the things worth shooting a web at
-  // ---------------------------------------------------------------------------
 
   World.prototype._crane = function (b) {
     var rng = this.rng;
@@ -173,11 +322,20 @@
       x0: x - back,
       x1: x + reach,
       hookX: x + reach * rng.range(0.45, 0.85),
-      hookLen: rng.range(60, 170),
+      hookLen: rng.range(70, 190),
     };
+    // Half of the cranes carry a swinging load worth dodging.
+    if (rng.chance(0.5)) {
+      crane.load = {
+        len: crane.hookLen,
+        angle: rng.range(-0.5, 0.5),
+        vel: rng.range(-0.6, 0.6),
+        r: rng.range(20, 30),
+      };
+    }
     this.props.push(crane);
-    this._box(x - 8, jibY, 16, mastH, false, crane); // mast
-    this._box(crane.x0, jibY - 5, crane.x1 - crane.x0, 11, true, crane); // jib
+    this._box(x - 8, jibY, 16, mastH, false, crane);
+    this._box(crane.x0, jibY - 5, crane.x1 - crane.x0, 11, true, crane);
     return crane;
   };
 
@@ -213,7 +371,6 @@
       y0: y0,
       x1: b.x + 6,
       y1: y1,
-      // Control point sits at the horizontal midpoint, which keeps x linear in t.
       cy: (y0 + y1) / 2 + rng.range(40, 110),
       lamps: rng.int(2, 4),
     };
@@ -223,7 +380,7 @@
 
   World.prototype._blimp = function (x) {
     var rng = this.rng;
-    var blimp = {
+    this.props.push({
       type: "blimp",
       x: x,
       y: -rng.range(1180, 1750),
@@ -231,14 +388,40 @@
       ry: rng.range(34, 52),
       vx: -rng.range(18, 46) * C.PACE,
       phase: rng.range(0, U.TAU),
-    };
-    this.props.push(blimp);
-    return blimp;
+    });
   };
 
-  // ---------------------------------------------------------------------------
-  // Generation
-  // ---------------------------------------------------------------------------
+  World.prototype._hazard = function (x) {
+    var rng = this.rng;
+    if (rng.chance(0.45)) {
+      var y = -rng.range(430, 980);
+      this.hazards.push({
+        type: "heli",
+        x: x,
+        y: y,
+        baseY: y,
+        r: 30,
+        vx: -rng.range(70, 130) * C.PACE,
+        phase: rng.range(0, U.TAU),
+        beam: rng.range(240, 420),
+      });
+    } else {
+      var n = rng.int(1, 3);
+      for (var i = 0; i < n; i++) {
+        var by = -rng.range(240, 820);
+        this.hazards.push({
+          type: "drone",
+          x: x + i * rng.range(90, 220),
+          y: by,
+          baseY: by,
+          amp: rng.range(24, 70),
+          r: 15,
+          vx: -rng.range(14, 46) * C.PACE,
+          phase: rng.range(0, U.TAU),
+        });
+      }
+    }
+  };
 
   World.prototype._spawnOrbs = function (b, gap) {
     var rng = this.rng;
@@ -262,23 +445,27 @@
   World.prototype.ensureUpTo = function (x) {
     var rng = this.rng;
     while (this.nextX < x) {
-      var d = U.clamp((this.nextX - this.startX) / 30000, 0, 1);
-      var w = rng.range(110, 215);
+      var district = this.districtAt(this.nextX).def;
+      var w = rng.range(district.w[0], district.w[1]);
       var h;
-      // Never let the skyline drop for so long that there is nothing to grab.
       var forceHigh = this.nextX - this.lastHighX > 700;
-      if (forceHigh || rng.chance(0.2)) h = rng.range(600, 900);
-      else h = rng.range(260, 560) - d * 50;
+      if (forceHigh || rng.chance(district.towerChance)) {
+        h = rng.range(district.tower[0], district.tower[1]);
+      } else {
+        h = rng.range(district.h[0], district.h[1]);
+      }
 
       var b = this._push(w, h, false, forceHigh);
       if (b.h + b.antennaH >= HIGH_ANCHOR) this.lastHighX = b.x + b.w * 0.5;
 
-      // Rooftop rigging.
-      if (rng.chance(0.28)) this._crane(b);
-      else if (rng.chance(0.3)) this._sign(b);
+      if (rng.chance(district.crane)) this._crane(b);
+      else if (rng.chance(district.sign)) this._sign(b);
 
-      // Cables strung across the previous gap give anchors over the void.
-      if (this.prev && b.x - (this.prev.x + this.prev.w) > 150 && rng.chance(0.55)) {
+      if (
+        this.prev &&
+        b.x - (this.prev.x + this.prev.w) > 150 &&
+        rng.chance(district.wire)
+      ) {
         this._wire(this.prev, b);
       }
       this.prev = b;
@@ -287,21 +474,18 @@
         this._blimp(b.x + rng.range(400, 1200));
         this.nextBlimpX = b.x + rng.range(2800, 4800);
       }
+      if (this.hazardsOn && b.x > this.nextHazardX) {
+        this._hazard(b.x + rng.range(300, 900));
+        this.nextHazardX = b.x + rng.range(2200, 4200);
+      }
 
-      var gap = rng.range(U.lerp(190, 260, d), U.lerp(320, 500, d));
+      var gap = rng.range(district.gap[0], district.gap[1]);
       this._spawnOrbs(b, gap);
       this.nextX += w + gap;
     }
     this.boxes.sort(function (p, q) {
       return p.x - q.x;
     });
-  };
-
-  World.prototype.update = function (dt) {
-    for (var i = 0; i < this.props.length; i++) {
-      var p = this.props[i];
-      if (p.type === "blimp") p.x += p.vx * dt;
-    }
   };
 
   World.prototype.prune = function (x) {
@@ -312,11 +496,19 @@
       this.boxes.shift();
     }
     while (this.orbs.length && this.orbs[0].x < x) this.orbs.shift();
-    for (var i = this.props.length - 1; i >= 0; i--) {
+    var i;
+    for (i = this.props.length - 1; i >= 0; i--) {
       var p = this.props[i];
       var right =
-        p.type === "wire" ? p.x1 : p.type === "blimp" ? p.x + p.rx : p.x1 || p.x + p.w;
+        p.type === "wire"
+          ? p.x1
+          : p.type === "blimp"
+          ? p.x + p.rx
+          : p.x1 || p.x + p.w;
       if (right < x) this.props.splice(i, 1);
+    }
+    for (i = this.hazards.length - 1; i >= 0; i--) {
+      if (this.hazards[i].x + 200 < x) this.hazards.splice(i, 1);
     }
   };
 
@@ -324,7 +516,6 @@
   // Queries
   // ---------------------------------------------------------------------------
 
-  /** Boxes whose horizontal span intersects [x0, x1]. */
   World.prototype.near = function (x0, x1, out) {
     out.length = 0;
     for (var i = 0; i < this.boxes.length; i++) {
@@ -342,7 +533,6 @@
     return it * it * w.y0 + 2 * it * t * w.cy + t * t * w.y1;
   }
 
-  /** Anchor-only shapes: cables and airships. Returns the prop or null. */
   World.prototype.softAt = function (x, y) {
     for (var i = 0; i < this.props.length; i++) {
       var p = this.props[i];
@@ -368,10 +558,6 @@
 
   var _scratch = [];
 
-  /**
-   * March a ray until it meets a facade, roof, mast, crane, sign or cable.
-   * Returns the anchor point or null when the shot flies into the void.
-   */
   World.prototype.raycast = function (ox, oy, dx, dy, maxDist) {
     var x0 = Math.min(ox, ox + dx * maxDist) - 8;
     var x1 = Math.max(ox, ox + dx * maxDist) + 8;
@@ -398,8 +584,6 @@
       if (b) {
         var ax = px;
         var ay = py;
-        // A web that lands on a facade slides up to the roof edge and hangs
-        // just off the corner, so the swing arc stays outside the wall.
         if (b.hard && !b.prop && py > b.y + 1) {
           var ry = b.y - 4;
           var rx = px < b.x + b.w * 0.5 ? b.x - 7 : b.x + b.w + 7;
@@ -416,10 +600,6 @@
     return null;
   };
 
-  /**
-   * Circle versus city. Returns the contact normal and penetration depth so the
-   * player can decide between a scrape, a landing and a fatal impact.
-   */
   World.prototype.collide = function (x, y, r) {
     var list = this.near(x - r - 4, x + r + 4, _scratch);
     for (var i = 0; i < list.length; i++) {
@@ -439,7 +619,6 @@
         return { box: b, nx: dx / d, ny: dy / d, depth: r - d };
       }
 
-      // Centre is inside the box: escape through the closest face.
       var toLeft = x - b.x;
       var toRight = b.x + b.w - x;
       var toTop = y - top;
@@ -453,7 +632,25 @@
     return null;
   };
 
-  /** Surface directly under the given point, used to keep a runner grounded. */
+  /** Distance to the closest hard surface, capped at `max`. Used for grazes. */
+  World.prototype.clearance = function (x, y, max) {
+    var list = this.near(x - max, x + max, _scratch);
+    var best = max;
+    var bestBox = null;
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i];
+      if (!b.hard) continue;
+      var cx = U.clamp(x, b.x, b.x + b.w);
+      var cy = U.clamp(y, b.y, b.y + b.h);
+      var d = Math.hypot(x - cx, y - cy);
+      if (d < best) {
+        best = d;
+        bestBox = b;
+      }
+    }
+    return { dist: best, box: bestBox };
+  };
+
   World.prototype.roofUnder = function (x, y, r) {
     var list = this.near(x - r, x + r, _scratch);
     for (var i = 0; i < list.length; i++) {
@@ -465,6 +662,33 @@
     return null;
   };
 
+  /** Moving obstacles: helicopters, drones and swinging crane loads. */
+  World.prototype.hazardAt = function (x, y, r) {
+    var i;
+    for (i = 0; i < this.hazards.length; i++) {
+      var z = this.hazards[i];
+      var rr = z.r + r;
+      var dx = x - z.x;
+      var dy = y - z.y;
+      if (dx * dx + dy * dy < rr * rr) return z;
+    }
+    for (i = 0; i < this.props.length; i++) {
+      var p = this.props[i];
+      if (p.type !== "crane" || !p.load) continue;
+      var lx = p.hookX + Math.sin(p.load.angle) * p.load.len;
+      var ly = p.jibY + Math.cos(p.load.angle) * p.load.len;
+      var lr = p.load.r + r;
+      var ldx = x - lx;
+      var ldy = y - ly;
+      if (ldx * ldx + ldy * ldy < lr * lr) {
+        return { type: "load", x: lx, y: ly, r: p.load.r };
+      }
+    }
+    return null;
+  };
+
+  World.DISTRICTS = DISTRICTS;
+  World.DISTRICT_LEN = DISTRICT_LEN;
   World.wireY = wireY;
   SW.World = World;
 })(window);

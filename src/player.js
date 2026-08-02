@@ -21,11 +21,15 @@
     this.wallTimer = 0;
     this.kickTimer = 0;
     this.kickCd = 0;
+    this.dashCd = 0;
+    this.dashFx = 0;
+    this.stun = 0;
     this.dead = false;
     this.facing = 1;
     this.runPhase = 0;
     this.limbPhase = 0;
     this.swingTime = 0;
+    this.airTime = 0;
   }
 
   Player.prototype.reset = function (x, y) {
@@ -35,14 +39,19 @@
     this.vel.y = C.LAUNCH_VY;
     this.web = "none";
     this.webT = 0;
+    this.anchorObj = null;
     this.onRoof = false;
     this.onWall = false;
     this.wallTimer = 0;
     this.kickTimer = 0;
     this.kickCd = 0;
+    this.dashCd = 0;
+    this.dashFx = 0;
+    this.stun = 0;
     this.dead = false;
     this.facing = 1;
     this.swingTime = 0;
+    this.airTime = 0;
   };
 
   Player.prototype.attached = function () {
@@ -52,6 +61,14 @@
   Player.prototype.speed = function () {
     return Math.hypot(this.vel.x, this.vel.y);
   };
+
+  Player.prototype.altitude = function () {
+    return C.GROUND_Y - this.pos.y;
+  };
+
+  // ---------------------------------------------------------------------------
+  // Webs
+  // ---------------------------------------------------------------------------
 
   /** Anchor the shot would find, or null. Webs only stick above the head. */
   Player.prototype.probeDir = function (dx, dy, world) {
@@ -68,9 +85,18 @@
     return this.probeDir(dx / d, dy / d, world);
   };
 
-  /** Fire a web towards a world-space point. Returns true when it sticks. */
+  /** Rope length a web to this anchor would settle on. */
+  Player.prototype.ropeFor = function (ax, ay) {
+    var safeLen = Math.max(C.MIN_ROPE, -ay - 150);
+    return U.clamp(
+      Math.hypot(this.pos.x - ax, this.pos.y - ay),
+      C.MIN_ROPE,
+      Math.min(C.MAX_ROPE, safeLen)
+    );
+  };
+
   Player.prototype.shoot = function (tx, ty, world) {
-    if (this.dead) return false;
+    if (this.dead || this.stun > 0) return false;
     var dx = tx - this.pos.x;
     var dy = ty - this.pos.y;
     var d = Math.hypot(dx, dy);
@@ -86,7 +112,10 @@
     this.anchor.y = hit.y;
     this.anchorObj = hit.obj || null;
     if (this.anchorObj) {
-      this.anchorOff = { x: hit.x - this.anchorObj.x, y: hit.y - this.anchorObj.y };
+      this.anchorOff = {
+        x: hit.x - this.anchorObj.x,
+        y: hit.y - this.anchorObj.y,
+      };
     }
     this.web = "flying";
     this.webT = 0;
@@ -105,8 +134,7 @@
       var dy = Math.sin(a);
       var hit = this.probeDir(dx, dy, world);
       if (!hit) continue;
-      var score =
-        (hit.x - this.pos.x) * dir * 0.6 + (this.pos.y - hit.y) * 1.1;
+      var score = (hit.x - this.pos.x) * dir * 0.6 + (this.pos.y - hit.y) * 1.1;
       if (score > bestScore) {
         bestScore = score;
         best = hit;
@@ -129,9 +157,82 @@
     }
   };
 
-  /** True while a push-off is available: recent wall contact, not on cooldown. */
+  /**
+   * Forward-simulate the swing this anchor would produce, so the player can see
+   * where a shot leads before committing to it.
+   */
+  Player.prototype.predict = function (ax, ay, world, out) {
+    out.length = 0;
+    var px = this.pos.x;
+    var py = this.pos.y;
+    var vx = this.vel.x;
+    var vy = this.vel.y;
+    var rope = this.ropeFor(ax, ay);
+    var dt = 1 / 60;
+    var wind = world.weather ? world.weather.wind * C.WIND_MAX : 0;
+    var drag = Math.exp(-C.DRAG_ATTACHED * dt);
+    out.stop = "time";
+    out.release = null;
+    var prevVy = vy;
+    for (var i = 0; i < 54; i++) {
+      rope = Math.max(C.MIN_ROPE, rope - C.AUTO_REEL * dt);
+      vy += C.GRAVITY * dt;
+      vx += wind * dt;
+      vx *= drag;
+      vy *= drag;
+      px += vx * dt;
+      py += vy * dt;
+
+      var dx = px - ax;
+      var dy = py - ay;
+      var d = Math.hypot(dx, dy) || 1e-6;
+      if (d > rope) {
+        var nx = dx / d;
+        var ny = dy / d;
+        px = ax + nx * rope;
+        py = ay + ny * rope;
+        var vn = vx * nx + vy * ny;
+        if (vn > 0) {
+          vx -= nx * vn;
+          vy -= ny * vn;
+        }
+      }
+      // Bottom of the arc: the moment worth letting go, marked for the player.
+      if (!out.release && i > 4 && prevVy > 0 && vy <= 0) {
+        out.release = { x: px, y: py };
+      }
+      prevVy = vy;
+      if (i % 2 === 0) out.push({ x: px, y: py });
+      if (py > C.GROUND_Y - C.PLAYER_R) {
+        out.stop = "ground";
+        break;
+      }
+      // The first frames are skipped: standing on a roof or hugging a wall
+      // counts as a contact and would cut the preview off instantly.
+      if (i > 8) {
+        var c = world.collide(px, py, C.PLAYER_R);
+        if (c) {
+          // Landing on a roof is a fine way to end a swing; a facade is not.
+          out.stop = c.ny < -0.6 ? "land" : "wall";
+          break;
+        }
+      }
+    }
+    return out;
+  };
+
+  // ---------------------------------------------------------------------------
+  // Wall work and the rescue dash
+  // ---------------------------------------------------------------------------
+
   Player.prototype.canKick = function () {
-    return !this.dead && !this.onRoof && this.kickTimer > 0 && this.kickCd <= 0;
+    return (
+      !this.dead && !this.onRoof && this.kickTimer > 0 && this.kickCd <= 0
+    );
+  };
+
+  Player.prototype.canDash = function () {
+    return !this.dead && this.stun <= 0 && this.dashCd <= 0;
   };
 
   Player.prototype._launch = function (ux, uy, power, game) {
@@ -153,10 +254,6 @@
     }
   };
 
-  /**
-   * Push off the wall. Holding away from it flattens the kick into a sprint,
-   * holding into it turns the kick vertical for climbing a shaft.
-   */
   Player.prototype.wallKick = function (input, game) {
     var nx = this.wallNx;
     var ux = nx;
@@ -168,13 +265,11 @@
       ux = nx * 0.34;
       uy = -1.3;
     }
-    // Reward speed you brought into the wall instead of erasing it.
     var carry = this.vel.y < 0 ? -this.vel.y * 0.3 : 0;
     this._launch(ux, uy, C.KICK_POWER + carry, game);
     input.jump = false;
   };
 
-  /** Push off in the aimed direction; never back into the wall or straight down. */
   Player.prototype.kickToward = function (tx, ty, game) {
     var ux = tx - this.pos.x;
     var uy = ty - this.pos.y;
@@ -186,6 +281,49 @@
     if (Math.abs(ux) < 0.25) ux = this.wallNx * 0.25;
     this._launch(ux, uy, C.KICK_POWER, game);
   };
+
+  /** One-shot burst of speed towards the aim; the way out of a doomed fall. */
+  Player.prototype.dash = function (tx, ty, game) {
+    if (!this.canDash()) return false;
+    var ux = tx - this.pos.x;
+    var uy = ty - this.pos.y;
+    var d = Math.hypot(ux, uy);
+    if (d < 1) {
+      ux = this.facing;
+      uy = -0.5;
+      d = Math.hypot(ux, uy);
+    }
+    var power = Math.max(C.DASH_POWER, this.speed());
+    this.vel.x = (ux / d) * power;
+    this.vel.y = (uy / d) * power;
+    this.release();
+    this.onWall = false;
+    this.onRoof = false;
+    this.dashCd = C.DASH_COOLDOWN;
+    this.dashFx = 0.32;
+    if (game) game.onDash(this.pos.x, this.pos.y, ux / d, uy / d);
+    return true;
+  };
+
+  /** Knocked out of the air by a helicopter, drone or swinging load. */
+  Player.prototype.hit = function (hz, game) {
+    if (this.stun > 0 || this.dead) return false;
+    var dx = this.pos.x - hz.x;
+    var dy = this.pos.y - hz.y;
+    var d = Math.hypot(dx, dy) || 1;
+    this.release();
+    this.onWall = false;
+    this.onRoof = false;
+    this.vel.x = (dx / d) * C.HIT_KNOCKBACK * 0.7;
+    this.vel.y = Math.max((dy / d) * C.HIT_KNOCKBACK, 120 * C.PACE);
+    this.stun = C.STUN_TIME;
+    if (game) game.onHazardHit(hz);
+    return true;
+  };
+
+  // ---------------------------------------------------------------------------
+  // Simulation
+  // ---------------------------------------------------------------------------
 
   Player.prototype.update = function (dt, input, world, game) {
     if (this.dead) {
@@ -200,25 +338,22 @@
       return;
     }
 
-    // Anchors on drifting objects (airships) carry the web with them.
+    this.dashCd -= dt;
+    this.dashFx = Math.max(0, this.dashFx - dt);
+    this.stun -= dt;
+    var stunned = this.stun > 0;
+
     if (this.anchorObj) {
       this.anchor.x = this.anchorObj.x + this.anchorOff.x;
       this.anchor.y = this.anchorObj.y + this.anchorOff.y;
     }
 
-    // --- web state machine -------------------------------------------------
     if (this.web === "flying") {
       this.webT += dt / this.webDur;
       if (this.webT >= 1) {
         this.web = "attached";
         this.webT = 1;
-        // Cap the rope so the bottom of the arc never dips into the street.
-        var safeLen = Math.max(C.MIN_ROPE, -this.anchor.y - 150);
-        this.ropeLen = U.clamp(
-          Math.hypot(this.pos.x - this.anchor.x, this.pos.y - this.anchor.y),
-          C.MIN_ROPE,
-          Math.min(C.MAX_ROPE, safeLen)
-        );
+        this.ropeLen = this.ropeFor(this.anchor.x, this.anchor.y);
         this.swingTime = 0;
         if (game) game.onAttach();
       }
@@ -229,43 +364,48 @@
 
     var attached = this.web === "attached";
 
-    // --- surface contact memory --------------------------------------------
     if (this.onRoof && !world.roofUnder(this.pos.x, this.pos.y, C.PLAYER_R)) {
       this.onRoof = false;
     }
     this.wallTimer -= dt;
     this.kickTimer -= dt;
     this.kickCd -= dt;
-    // Clinging needs current contact; the kick keeps a short coyote window and
-    // works even while hanging on a web.
     this.onWall = this.wallTimer > 0 && !attached && !this.onRoof;
 
-    if (input.jump && this.canKick()) {
+    if (input.jump && !stunned && this.canKick()) {
       this.wallKick(input, game);
       attached = false;
     }
 
-    // --- forces ------------------------------------------------------------
+    var moveX = stunned ? 0 : input.moveX;
+    var reel = stunned ? 0 : input.reel;
+
     this.vel.y += C.GRAVITY * dt;
 
+    var weather = world.weather || { wind: 0, rain: 0 };
+    if (!this.onRoof && !this.onWall) {
+      this.vel.x += weather.wind * C.WIND_MAX * dt;
+    }
+
     if (this.onRoof) {
-      if (input.moveX !== 0) {
-        this.vel.x += input.moveX * C.RUN_ACCEL * dt;
+      if (moveX !== 0) {
+        this.vel.x += moveX * C.RUN_ACCEL * dt;
         this.vel.x = U.clamp(this.vel.x, -C.RUN_MAX * 2, C.RUN_MAX * 2);
       } else {
         this.vel.x = U.damp(this.vel.x, 0, 3.2, dt);
       }
       if (this.vel.y > 0) this.vel.y = 0;
-      if (input.jump) {
+      if (input.jump && !stunned) {
         this.vel.y = -C.JUMP_VELOCITY;
         this.onRoof = false;
         input.jump = false;
         if (game) game.onJump();
       }
       this.runPhase += Math.abs(this.vel.x) * dt * 0.045;
+      this.airTime = 0;
     } else if (attached) {
       this.swingTime += dt;
-      // Pumping: push along the tangent of the pendulum arc.
+      this.airTime += dt;
       var rx = this.pos.x - this.anchor.x;
       var ry = this.pos.y - this.anchor.y;
       var rl = Math.hypot(rx, ry) || 1e-6;
@@ -273,14 +413,17 @@
       var ny = ry / rl;
       var tx = -ny;
       var ty = nx;
-      if (input.moveX !== 0) {
-        var proj = input.moveX * C.SWING_ACCEL * tx;
+      if (moveX !== 0) {
+        var proj = moveX * C.SWING_ACCEL * tx;
         this.vel.x += tx * proj * dt;
         this.vel.y += ty * proj * dt;
       }
-      if (input.reel !== 0) {
+      // The web reels itself in, which lifts the arc over the roofline instead
+      // of dragging it into the facade the anchor sits on.
+      this.ropeLen = Math.max(C.MIN_ROPE, this.ropeLen - C.AUTO_REEL * dt);
+      if (reel !== 0) {
         this.ropeLen = U.clamp(
-          this.ropeLen - input.reel * C.REEL_SPEED * dt,
+          this.ropeLen - reel * C.REEL_SPEED * dt,
           C.MIN_ROPE,
           C.MAX_ROPE
         );
@@ -289,11 +432,14 @@
       // Spider grip: keep leaning into the facade, otherwise zeroing the
       // horizontal speed would break contact and drop the hero next frame.
       this.vel.x = -this.wallNx * 25;
-      if (input.reel > 0) this.vel.y = -C.WALL_CLIMB;
-      else if (input.reel < 0) this.vel.y = C.WALL_CLIMB;
-      else this.vel.y = Math.min(this.vel.y, C.WALL_SLIDE);
+      var slide = C.WALL_SLIDE * (1 + weather.rain * 1.6);
+      if (reel > 0) this.vel.y = -C.WALL_CLIMB;
+      else if (reel < 0) this.vel.y = C.WALL_CLIMB;
+      else this.vel.y = Math.min(this.vel.y, slide);
+      this.airTime = 0;
     } else {
-      this.vel.x += input.moveX * C.AIR_ACCEL * dt;
+      this.vel.x += moveX * C.AIR_ACCEL * dt;
+      this.airTime += dt;
     }
 
     var drag = attached ? C.DRAG_ATTACHED : C.DRAG_FREE;
@@ -308,11 +454,9 @@
       this.vel.y *= k;
     }
 
-    // --- integrate ---------------------------------------------------------
     this.pos.x += this.vel.x * dt;
     this.pos.y += this.vel.y * dt;
 
-    // --- rope as a maximum-distance constraint -----------------------------
     if (attached) {
       var dx = this.pos.x - this.anchor.x;
       var dy = this.pos.y - this.anchor.y;
@@ -333,7 +477,6 @@
     if (Math.abs(this.vel.x) > 40 * C.PACE) this.facing = this.vel.x > 0 ? 1 : -1;
     this.limbPhase += dt * 6;
 
-    // --- collisions --------------------------------------------------------
     if (this.pos.y + C.PLAYER_R >= C.GROUND_Y) {
       this.pos.y = C.GROUND_Y - C.PLAYER_R;
       if (game) game.kill("ground");
@@ -344,13 +487,13 @@
     if (hit) {
       this.pos.x += hit.nx * hit.depth;
       this.pos.y += hit.ny * hit.depth;
-      var vn = this.vel.x * hit.nx + this.vel.y * hit.ny;
-      var impact = -vn;
+      var hvn = this.vel.x * hit.nx + this.vel.y * hit.ny;
+      var impact = -hvn;
       var onRoofFace = hit.ny < -0.6;
 
-      if (vn < 0) {
-        this.vel.x -= hit.nx * vn;
-        this.vel.y -= hit.ny * vn;
+      if (hvn < 0) {
+        this.vel.x -= hit.nx * hvn;
+        this.vel.y -= hit.ny * hvn;
       }
 
       if (onRoofFace) {
@@ -360,7 +503,6 @@
         this.release();
         if (wasFlying && game) game.onLand(impact);
       } else {
-        // A facade never kills, it just eats the momentum you worked for.
         var bleed = impact > C.FATAL_IMPACT ? 0.55 : 0.9;
         this.vel.x *= bleed;
         this.vel.y *= bleed;
@@ -368,7 +510,9 @@
         this.wallNx = hit.nx;
         this.wallTimer = C.WALL_GRIP;
         this.kickTimer = C.KICK_COYOTE;
-        if (game && impact > 120 * C.PACE) game.onScrape(this.pos.x, this.pos.y, impact);
+        if (game && impact > 120 * C.PACE) {
+          game.onScrape(this.pos.x, this.pos.y, impact);
+        }
       }
     }
   };
@@ -383,7 +527,6 @@
   var EYE = "#eef4ff";
 
   Player.prototype.handPos = function (out) {
-    // Web leaves the hand, not the belly button.
     var ux = 0;
     var uy = -1;
     if (this.web === "attached" || this.web === "flying") {
@@ -414,6 +557,7 @@
     } else {
       ang = U.clamp(this.vel.x / (1600 * C.PACE), -0.6, 0.6);
     }
+    if (this.stun > 0) ang += Math.sin(this.stun * 40) * 0.5;
 
     var face = this.onWall ? -this.wallNx || 1 : this.facing;
 
@@ -430,7 +574,6 @@
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    // Legs.
     ctx.strokeStyle = CLOTH;
     ctx.lineWidth = 5;
     ctx.beginPath();
@@ -457,7 +600,6 @@
     }
     ctx.stroke();
 
-    // Torso.
     ctx.strokeStyle = SUIT;
     ctx.lineWidth = 8;
     ctx.beginPath();
@@ -465,7 +607,6 @@
     ctx.lineTo(0, 5);
     ctx.stroke();
 
-    // Arms: the leading one reaches for the anchor (local "up").
     ctx.strokeStyle = SUIT_DARK;
     ctx.lineWidth = 4.5;
     ctx.beginPath();
@@ -492,7 +633,6 @@
     }
     ctx.stroke();
 
-    // Head.
     ctx.fillStyle = SUIT;
     ctx.beginPath();
     ctx.arc(0, -12, 7, 0, U.TAU);

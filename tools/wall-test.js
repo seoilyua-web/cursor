@@ -37,6 +37,8 @@ const noop = {
   onJump() {},
   onScrape() {},
   onKick() {},
+    onDash() {},
+    onHazardHit() {},
 };
 
 function freeSpot(world, b, dyFromTop) {
