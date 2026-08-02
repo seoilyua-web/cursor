@@ -174,14 +174,14 @@
 
   game.onLand = function (impact) {
     SW.audio.thud();
-    var n = 6 + U.clamp((impact || 0) / 120, 0, 10);
+    var n = 6 + U.clamp((impact || 0) / (120 * C.PACE), 0, 10);
     burst(game.player.pos.x, game.player.pos.y + C.PLAYER_R, n, "#a9b6ff", 120);
-    game.cam.shake = Math.max(game.cam.shake, U.clamp((impact || 0) / 90, 0, 9));
+    game.cam.shake = Math.max(game.cam.shake, U.clamp((impact || 0) / (90 * C.PACE), 0, 9));
   };
 
   game.onScrape = function (x, y, impact) {
-    burst(x, y, 3, "#ffd08a", 90 + impact * 0.2);
-    game.cam.shake = Math.max(game.cam.shake, U.clamp(impact / 140, 0, 7));
+    burst(x, y, 3, "#ffd08a", (90 + impact * 0.2) * C.PACE);
+    game.cam.shake = Math.max(game.cam.shake, U.clamp(impact / (140 * C.PACE), 0, 7));
   };
 
   game.onJump = function () {
@@ -301,7 +301,7 @@
     cam.x = U.damp(cam.x, tx, 6, dt);
     cam.y = U.damp(cam.y, ty, 4.6, dt);
 
-    var tz = 1 - U.clamp((sp - 520) / 2600, 0, 0.34);
+    var tz = 1 - U.clamp((sp - 520 * C.PACE) / (2600 * C.PACE), 0, 0.34);
     cam.zoom = U.damp(cam.zoom, tz, 3, dt);
     cam.shake = U.damp(cam.shake, 0, 6, dt);
   }
@@ -329,7 +329,7 @@
     var cam = game.cam;
     var p = game.player;
     var sp = p.speed();
-    var intensity = U.clamp((sp - 900) / 1600, 0, 1);
+    var intensity = U.clamp((sp - 900 * C.PACE) / (1600 * C.PACE), 0, 1);
 
     ctx.setTransform(game.view.dpr, 0, 0, game.view.dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
@@ -388,7 +388,7 @@
       updateCamera(dt);
 
       var p = game.player;
-      if (p.speed() > 220) {
+      if (p.speed() > 220 * C.PACE) {
         game.trail.push({ x: p.pos.x, y: p.pos.y });
         if (game.trail.length > 26) game.trail.shift();
       } else if (game.trail.length) {

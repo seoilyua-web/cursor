@@ -27,8 +27,8 @@
   Player.prototype.reset = function (x, y) {
     this.pos.x = x;
     this.pos.y = y;
-    this.vel.x = 620;
-    this.vel.y = -320;
+    this.vel.x = C.LAUNCH_VX;
+    this.vel.y = C.LAUNCH_VY;
     this.web = "none";
     this.webT = 0;
     this.onRoof = false;
@@ -262,7 +262,7 @@
       }
     }
 
-    if (Math.abs(this.vel.x) > 40) this.facing = this.vel.x > 0 ? 1 : -1;
+    if (Math.abs(this.vel.x) > 40 * C.PACE) this.facing = this.vel.x > 0 ? 1 : -1;
     this.limbPhase += dt * 6;
 
     // --- collisions --------------------------------------------------------
@@ -299,7 +299,7 @@
         this.onWall = true;
         this.wallNx = hit.nx;
         this.wallTimer = 0.12;
-        if (game && impact > 120) game.onScrape(this.pos.x, this.pos.y, impact);
+        if (game && impact > 120 * C.PACE) game.onScrape(this.pos.x, this.pos.y, impact);
       }
     }
   };
@@ -343,7 +343,7 @@
     } else if (this.onWall) {
       ang = this.wallNx * 0.32;
     } else {
-      ang = U.clamp(this.vel.x / 1600, -0.6, 0.6);
+      ang = U.clamp(this.vel.x / (1600 * C.PACE), -0.6, 0.6);
     }
 
     var face = this.onWall ? -this.wallNx || 1 : this.facing;
@@ -356,7 +356,7 @@
     var swing = Math.sin(this.limbPhase);
     var run = this.onRoof ? Math.sin(this.runPhase) : 0;
     var free = !this.onRoof && !this.onWall && this.web !== "attached";
-    var tuck = free ? U.clamp(this.vel.y / 900, -1, 1) : 0;
+    var tuck = free ? U.clamp(this.vel.y / (900 * C.PACE), -1, 1) : 0;
 
     ctx.lineCap = "round";
     ctx.lineJoin = "round";

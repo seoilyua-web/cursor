@@ -60,28 +60,40 @@
     hash01: hash01,
   };
 
+  /**
+   * Single pace knob. Velocities scale with PACE and accelerations with PACE²,
+   * so every trajectory keeps its exact shape and only takes longer to fly.
+   * 1 = original pace, lower = calmer.
+   */
+  var PACE = 0.7;
+  var V = PACE;
+  var A = PACE * PACE;
+
   SW.CONST = {
-    GRAVITY: 2000,
+    PACE: PACE,
+    GRAVITY: 2000 * A,
     MAX_ROPE: 560,
     MIN_ROPE: 80,
-    REEL_SPEED: 500,
-    SWING_ACCEL: 1350,
-    AIR_ACCEL: 780,
-    RUN_ACCEL: 2600,
-    RUN_MAX: 620,
-    JUMP_VELOCITY: 940,
-    WALL_SLIDE: 150,
-    WALL_CLIMB: 280,
-    WALL_JUMP_X: 680,
-    WALL_JUMP_Y: 900,
-    MAX_SPEED: 2700,
-    FATAL_IMPACT: 950,
-    DRAG_FREE: 0.09,
-    DRAG_ATTACHED: 0.035,
+    REEL_SPEED: 500 * V,
+    SWING_ACCEL: 1350 * A,
+    AIR_ACCEL: 780 * A,
+    RUN_ACCEL: 2600 * A,
+    RUN_MAX: 620 * V,
+    JUMP_VELOCITY: 940 * V,
+    WALL_SLIDE: 150 * V,
+    WALL_CLIMB: 280 * V,
+    WALL_JUMP_X: 680 * V,
+    WALL_JUMP_Y: 900 * V,
+    MAX_SPEED: 2700 * V,
+    FATAL_IMPACT: 950 * V,
+    DRAG_FREE: 0.09 * V,
+    DRAG_ATTACHED: 0.035 * V,
     PLAYER_R: 13,
     WEB_RANGE: 580,
     MIN_ANCHOR_RISE: 45,
-    WEB_SPEED: 4200,
+    WEB_SPEED: 4200 * V,
+    LAUNCH_VX: 620 * V,
+    LAUNCH_VY: -320 * V,
     PIXELS_PER_METER: 10,
     GROUND_Y: 0,
   };

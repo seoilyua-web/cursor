@@ -92,8 +92,8 @@ function run(seed, seconds) {
       input.moveX = 1;
       input.reel = player.pos.x < player.anchor.x ? 1 : 0;
       const past = player.pos.x > player.anchor.x - 20;
-      const rising = player.vel.y < -60;
-      stuck = player.speed() < 150 ? stuck + dt : 0;
+      const rising = player.vel.y < -60 * C.PACE;
+      stuck = player.speed() < 150 * C.PACE ? stuck + dt : 0;
       if ((past && rising) || (hold > 1.4 && rising) || stuck > 0.4) {
         player.release();
         hold = 0;
