@@ -286,6 +286,7 @@
       }
     }
 
+    game.world.update(dt);
     game.world.ensureUpTo(game.cam.x + 3600);
     game.world.prune(game.cam.x - 2200);
     updateParticles(dt);
@@ -348,6 +349,7 @@
     ctx.translate(-cam.x, -cam.y);
 
     SW.Render.buildings(ctx, game.world, cam, w);
+    SW.Render.props(ctx, game.world, cam, w, game.time);
     SW.Render.orbs(ctx, game.world, cam, w, game.time);
     if (game.state === "playing" && !p.dead) {
       SW.Render.aim(ctx, p, game.world, game.aim);

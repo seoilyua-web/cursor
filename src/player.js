@@ -9,6 +9,8 @@
     this.pos = { x: 0, y: 0 };
     this.vel = { x: 0, y: 0 };
     this.anchor = { x: 0, y: 0 };
+    this.anchorObj = null;
+    this.anchorOff = { x: 0, y: 0 };
     this.web = "none"; // none | flying | attached | miss
     this.webT = 0;
     this.webDur = 0.06;
@@ -78,6 +80,10 @@
     }
     this.anchor.x = hit.x;
     this.anchor.y = hit.y;
+    this.anchorObj = hit.obj || null;
+    if (this.anchorObj) {
+      this.anchorOff = { x: hit.x - this.anchorObj.x, y: hit.y - this.anchorObj.y };
+    }
     this.web = "flying";
     this.webT = 0;
     this.webDur = Math.max(0.03, hit.dist / C.WEB_SPEED);
@@ -115,6 +121,7 @@
     if (this.web === "attached" || this.web === "flying") {
       this.web = "none";
       this.webT = 0;
+      this.anchorObj = null;
     }
   };
 
@@ -138,6 +145,12 @@
         this.vel.y *= -0.24;
       }
       return;
+    }
+
+    // Anchors on drifting objects (airships) carry the web with them.
+    if (this.anchorObj) {
+      this.anchor.x = this.anchorObj.x + this.anchorOff.x;
+      this.anchor.y = this.anchorObj.y + this.anchorOff.y;
     }
 
     // --- web state machine -------------------------------------------------

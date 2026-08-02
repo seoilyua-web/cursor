@@ -137,6 +137,193 @@
     }
   };
 
+  function drawCrane(ctx, p, time) {
+    var mastTop = p.jibY;
+    ctx.strokeStyle = "#d9a12b";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.baseY);
+    ctx.lineTo(p.x, mastTop);
+    ctx.stroke();
+
+    // Lattice on the mast.
+    ctx.strokeStyle = "rgba(217,161,43,0.5)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    for (var y = p.baseY; y > mastTop; y -= 26) {
+      ctx.moveTo(p.x - 8, y);
+      ctx.lineTo(p.x + 8, y - 13);
+      ctx.moveTo(p.x + 8, y);
+      ctx.lineTo(p.x - 8, y - 13);
+      ctx.moveTo(p.x - 8, y);
+      ctx.lineTo(p.x - 8, y - 26);
+      ctx.moveTo(p.x + 8, y);
+      ctx.lineTo(p.x + 8, y - 26);
+    }
+    ctx.stroke();
+
+    // Jib and counter-jib.
+    ctx.strokeStyle = "#e8b23c";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(p.x0, mastTop);
+    ctx.lineTo(p.x1, mastTop);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(232,178,60,0.55)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(p.x, mastTop - 34);
+    ctx.lineTo(p.x1 - 12, mastTop - 4);
+    ctx.moveTo(p.x, mastTop - 34);
+    ctx.lineTo(p.x0 + 6, mastTop - 4);
+    ctx.moveTo(p.x, mastTop);
+    ctx.lineTo(p.x, mastTop - 34);
+    ctx.stroke();
+
+    // Hook on a swinging cable.
+    var sway = Math.sin(time * 0.7 + p.x * 0.01) * 6;
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(p.hookX, mastTop);
+    ctx.lineTo(p.hookX + sway, mastTop + p.hookLen);
+    ctx.stroke();
+    ctx.fillStyle = "#e8b23c";
+    ctx.fillRect(p.hookX + sway - 4, mastTop + p.hookLen, 8, 9);
+
+    ctx.fillStyle = "rgba(255,90,120,0.9)";
+    ctx.beginPath();
+    ctx.arc(p.x, mastTop - 38, 3, 0, U.TAU);
+    ctx.fill();
+  }
+
+  function drawSign(ctx, p, time) {
+    ctx.strokeStyle = "#101426";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(p.x + 12, p.y + p.h);
+    ctx.lineTo(p.x + 12, p.y + p.h + p.legs);
+    ctx.moveTo(p.x + p.w - 12, p.y + p.h);
+    ctx.lineTo(p.x + p.w - 12, p.y + p.h + p.legs);
+    ctx.stroke();
+
+    var flicker = 0.75 + Math.sin(time * 9 + p.seed) * 0.06;
+    ctx.fillStyle = "#0b0f1f";
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.globalAlpha = flicker;
+    ctx.strokeStyle = p.hue;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(p.x + 4, p.y + 4, p.w - 8, p.h - 8);
+
+    ctx.fillStyle = p.hue;
+    var rows = Math.max(1, Math.floor((p.h - 20) / 12));
+    for (var r = 0; r < rows; r++) {
+      var wid = (p.w - 26) * (0.45 + U.hash01(p.seed + r * 3.3) * 0.5);
+      ctx.fillRect(p.x + 13, p.y + 13 + r * 12, wid, 4);
+    }
+    ctx.globalAlpha = 1;
+
+    var glow = ctx.createRadialGradient(
+      p.x + p.w / 2,
+      p.y + p.h / 2,
+      4,
+      p.x + p.w / 2,
+      p.y + p.h / 2,
+      p.w
+    );
+    glow.addColorStop(0, p.hue);
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalAlpha = 0.13 * flicker;
+    ctx.fillStyle = glow;
+    ctx.fillRect(p.x - p.w, p.y - p.h, p.w * 3, p.h * 3);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawWire(ctx, p) {
+    var midX = (p.x0 + p.x1) / 2;
+    ctx.strokeStyle = "rgba(180,200,255,0.5)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(p.x0, p.y0);
+    ctx.quadraticCurveTo(midX, p.cy, p.x1, p.y1);
+    ctx.stroke();
+
+    for (var i = 1; i <= p.lamps; i++) {
+      var t = i / (p.lamps + 1);
+      var x = U.lerp(p.x0, p.x1, t);
+      var it = 1 - t;
+      var y = it * it * p.y0 + 2 * it * t * p.cy + t * t * p.y1;
+      var g = ctx.createRadialGradient(x, y + 7, 1, x, y + 7, 22);
+      g.addColorStop(0, "rgba(255,220,160,0.9)");
+      g.addColorStop(1, "rgba(255,190,120,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y + 7, 22, 0, U.TAU);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(180,200,255,0.4)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y + 6);
+      ctx.stroke();
+    }
+  }
+
+  function drawBlimp(ctx, p, time) {
+    var bob = Math.sin(time * 0.6 + p.phase) * 6;
+    ctx.save();
+    ctx.translate(p.x, p.y + bob);
+
+    ctx.fillStyle = "#e7e2d6";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, U.TAU);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255,59,107,0.85)";
+    ctx.beginPath();
+    ctx.ellipse(-p.rx * 0.28, 0, p.rx * 0.16, p.ry * 0.93, 0, 0, U.TAU);
+    ctx.fill();
+
+    ctx.fillStyle = "#c9c2b2";
+    ctx.beginPath();
+    ctx.moveTo(p.rx * 0.86, 0);
+    ctx.lineTo(p.rx * 1.16, -p.ry * 0.85);
+    ctx.lineTo(p.rx * 0.9, -p.ry * 0.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(p.rx * 0.86, 0);
+    ctx.lineTo(p.rx * 1.16, p.ry * 0.85);
+    ctx.lineTo(p.rx * 0.9, p.ry * 0.2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#2a3050";
+    ctx.fillRect(-p.rx * 0.22, p.ry * 0.75, p.rx * 0.44, p.ry * 0.42);
+    ctx.fillStyle = "rgba(255,220,160,0.9)";
+    ctx.fillRect(-p.rx * 0.14, p.ry * 0.85, p.rx * 0.1, p.ry * 0.16);
+    ctx.fillRect(p.rx * 0.02, p.ry * 0.85, p.rx * 0.1, p.ry * 0.16);
+
+    ctx.restore();
+  }
+
+  Render.props = function (ctx, world, cam, w, time) {
+    var half = w / (2 * cam.zoom) + 400;
+    ctx.save();
+    ctx.lineCap = "round";
+    for (var i = 0; i < world.props.length; i++) {
+      var p = world.props[i];
+      var px = p.type === "wire" ? p.x0 : p.x;
+      if (px < cam.x - half || px > cam.x + half) continue;
+      if (p.type === "crane") drawCrane(ctx, p, time);
+      else if (p.type === "sign") drawSign(ctx, p, time);
+      else if (p.type === "wire") drawWire(ctx, p);
+      else if (p.type === "blimp") drawBlimp(ctx, p, time);
+    }
+    ctx.restore();
+  };
+
   Render.orbs = function (ctx, world, cam, w, time) {
     var half = w / (2 * cam.zoom) + 60;
     ctx.save();
