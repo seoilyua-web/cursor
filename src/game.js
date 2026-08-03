@@ -948,7 +948,9 @@
       var cx = b.x + b.w * 0.5;
       if (cx < fromX + minAhead || cx > fromX + maxAhead) continue;
       if (b.w < 100) continue;
-      options.push({ x: cx, y: b.top });
+      // Never on top of a chimney, a billboard or a stepped tier.
+      var spot = game.world.freeRoofSpot(b, 26);
+      if (spot) options.push(spot);
     }
     if (!options.length) return null;
     return options[game.contractRng.int(0, options.length - 1)];

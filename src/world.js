@@ -809,13 +809,21 @@
   /** Rivals stand on the roof of the block they belong to, never in mid-air. */
   World.prototype._hazard = function (b, crane) {
     var rng = this.rng;
-    var roofX = b.x + b.w * rng.range(0.2, 0.8);
+    var clear = this.freeRoofSpot(b, 20);
+    var roofX = clear ? clear.x : b.x + b.w * 0.5;
     var roofY = b.top;
 
     // A crane jib is a fine place to wait for a courier.
     if (crane && rng.chance(0.4)) {
-      roofX = U.lerp(crane.x0 + 20, crane.x1 - 20, rng.next());
-      roofY = crane.jibY - 5;
+      var jibX = U.lerp(crane.x0 + 20, crane.x1 - 20, rng.next());
+      if (!this.collide(jibX, crane.jibY - 26, 17)) {
+        roofX = jibX;
+        roofY = crane.jibY - 5;
+      } else if (!clear) {
+        return;
+      }
+    } else if (!clear) {
+      return; // nowhere to stand on this block
     }
 
     if (rng.chance(0.34)) {
@@ -892,13 +900,16 @@
 
     // A slice waiting on the roof: fuel for anyone flying above the arcs.
     if (rng.chance(0.38)) {
-      this.pizzas.push({
-        x: b.x + b.w * rng.range(0.25, 0.75),
-        y: b.top - 24,
-        taken: false,
-        phase: rng.range(0, U.TAU),
-        spin: rng.range(-0.6, 0.6),
-      });
+      var spot = this.freeRoofSpot(b, 20);
+      if (spot) {
+        this.pizzas.push({
+          x: spot.x,
+          y: spot.y - 22,
+          taken: false,
+          phase: rng.range(0, U.TAU),
+          spin: rng.range(-0.6, 0.6),
+        });
+      }
     }
 
     if (gap < 120 || !rng.chance(0.88)) return;
@@ -1205,6 +1216,23 @@
       }
     }
     return max;
+  };
+
+  /**
+   * A spot on this roof that is clear of everything standing on it. Cargo, a
+   * slice of pizza or a rival dropped blindly on the centre ends up buried
+   * inside a setback or a chimney, which reads as a blocked passage.
+   */
+  World.prototype.freeRoofSpot = function (b, pad) {
+    var r = pad || 24;
+    var margin = Math.min(b.w * 0.2, 40) + r;
+    if (b.w < r * 2 + 10) return null;
+    for (var i = 0; i < 7; i++) {
+      var t = i / 6;
+      var x = U.lerp(b.x + margin, b.x + b.w - margin, t);
+      if (!this.collide(x, b.top - r - 2, r)) return { x: x, y: b.top };
+    }
+    return null;
   };
 
   World.prototype.roofUnder = function (x, y, r) {
