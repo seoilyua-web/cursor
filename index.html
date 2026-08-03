@@ -26,6 +26,9 @@
           <div class="stat">
             <span class="label">счёт</span><span id="hud-score">0</span>
           </div>
+          <div class="stat">
+            <span class="label">доставлено</span><span id="hud-deliveries">0</span>
+          </div>
         </div>
         <div class="hud-right">
           <div class="stat">
@@ -76,9 +79,11 @@
         <div id="start-card" class="card">
           <h1>ПАУТИНА</h1>
           <p class="tagline">
-            Гравитация тянет вниз. Всё, что у тебя есть, — маятник и крыши.
+            Ты курьер. Груз ждёт на крыше, адрес — через квартал, а всё, что у
+            тебя есть, — паутина и гравитация.
           </p>
           <ul class="controls">
+            <li><b>Задача</b><span>забрать груз и донести до площадки</span></li>
             <li><b>Мышь / палец</b><span>прицел</span></li>
             <li><b>Зажать</b><span>выстрелить паутину</span></li>
             <li><b>Отпустить</b><span>сорваться в полёт</span></li>
@@ -117,6 +122,10 @@
             <div class="result">
               <span class="label">дистанция</span>
               <b><span id="res-distance">0</span> м</b>
+            </div>
+            <div class="result">
+              <span class="label">доставки</span>
+              <b id="res-deliveries">0</b>
             </div>
             <div class="result">
               <span class="label">счёт</span>
@@ -174,7 +183,6 @@
             <label><input type="checkbox" id="opt-hazards" checked /> Враги и опасности</label>
             <label><input type="checkbox" id="opt-weather" checked /> Погода</label>
             <label><input type="checkbox" id="opt-tutor" checked /> Обучение</label>
-            <label><input type="checkbox" id="opt-contracts" checked /> Контракты на доставку</label>
             <label><input type="checkbox" id="opt-low" /> Низкое качество (для слабых устройств)</label>
             <label><input type="checkbox" id="opt-perf" /> Показывать время кадра</label>
             <label><input type="checkbox" id="opt-calm" /> Спокойный режим: без тряски и полос</label>

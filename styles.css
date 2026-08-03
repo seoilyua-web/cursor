@@ -617,7 +617,7 @@ input[type="checkbox"] {
 
 .results {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -640,7 +640,7 @@ input[type="checkbox"] {
 }
 
 .result b {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }

@@ -34,6 +34,7 @@
     this.bottomAt = -1;
     this.releasePerfect = false;
     this.tether = null;
+    this.carrying = false;
   }
 
   Player.prototype.reset = function (x, y) {
@@ -59,6 +60,7 @@
     this.bottomAt = -1;
     this.releasePerfect = false;
     this.tether = null;
+    this.carrying = false;
   };
 
   Player.prototype.attached = function () {
@@ -691,10 +693,12 @@
   // Drawing
   // ---------------------------------------------------------------------------
 
-  var SUIT = "#d92448";
-  var SUIT_DARK = "#8e0f2c";
-  var CLOTH = "#1d2a72";
-  var EYE = "#eef4ff";
+  var SUIT = "#f2c313";
+  var SUIT_DARK = "#c08f07";
+  var CLOTH = "#16171d";
+  var EYE = "#16171d";
+  var PACK = "#262a33";
+  var PACK_EDGE = "#f2c313";
 
   Player.prototype.handPos = function (out) {
     var ux = 0;
@@ -744,6 +748,24 @@
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
+    // Courier pack, drawn first so the body sits in front of it.
+    ctx.fillStyle = PACK;
+    ctx.fillRect(-15, -9, 12, 16);
+    ctx.strokeStyle = PACK_EDGE;
+    ctx.lineWidth = 1.6;
+    ctx.strokeRect(-15, -9, 12, 16);
+    ctx.beginPath();
+    ctx.moveTo(-15, -3.5);
+    ctx.lineTo(-3, -3.5);
+    ctx.stroke();
+    if (this.carrying) {
+      ctx.fillStyle = "rgba(120,240,255,0.85)";
+      ctx.fillRect(-13.5, -13, 9, 4.5);
+      ctx.strokeStyle = "rgba(180,250,255,0.9)";
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(-13.5, -13, 9, 4.5);
+    }
+
     ctx.strokeStyle = CLOTH;
     ctx.lineWidth = 5;
     ctx.beginPath();
@@ -777,6 +799,18 @@
     ctx.lineTo(0, 5);
     ctx.stroke();
 
+    // Wasp stripes across the chest.
+    ctx.strokeStyle = CLOTH;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(-4, -2.5);
+    ctx.lineTo(4, -2.5);
+    ctx.moveTo(-4, 1);
+    ctx.lineTo(4, 1);
+    ctx.moveTo(-4, 4.5);
+    ctx.lineTo(4, 4.5);
+    ctx.stroke();
+
     ctx.strokeStyle = SUIT_DARK;
     ctx.lineWidth = 4.5;
     ctx.beginPath();
@@ -807,6 +841,15 @@
     ctx.beginPath();
     ctx.arc(0, -12, 7, 0, U.TAU);
     ctx.fill();
+
+    // Stripe across the hood, clipped to the head.
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, -12, 7, 0, U.TAU);
+    ctx.clip();
+    ctx.fillStyle = CLOTH;
+    ctx.fillRect(-7, -17.5, 14, 2.4);
+    ctx.restore();
 
     ctx.fillStyle = EYE;
     ctx.beginPath();

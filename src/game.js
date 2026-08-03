@@ -12,6 +12,7 @@
     hud: document.getElementById("hud"),
     distance: document.getElementById("hud-distance"),
     score: document.getElementById("hud-score"),
+    deliveries: document.getElementById("hud-deliveries"),
     best: document.getElementById("hud-best"),
     speed: document.getElementById("hud-speed"),
     combo: document.getElementById("hud-combo"),
@@ -36,6 +37,7 @@
     deadTitle: document.getElementById("dead-title"),
     resDistance: document.getElementById("res-distance"),
     resScore: document.getElementById("res-score"),
+    resDeliveries: document.getElementById("res-deliveries"),
     resBest: document.getElementById("res-best"),
     resNew: document.getElementById("res-new"),
     btnPlay: document.getElementById("btn-play"),
@@ -50,7 +52,6 @@
     optWeather: document.getElementById("opt-weather"),
     optTutor: document.getElementById("opt-tutor"),
     optDaily: document.getElementById("opt-daily"),
-    optContracts: document.getElementById("opt-contracts"),
     optLow: document.getElementById("opt-low"),
     optPerf: document.getElementById("opt-perf"),
     optCalm: document.getElementById("opt-calm"),
@@ -84,7 +85,6 @@
     weather: true,
     tutor: true,
     daily: false,
-    contracts: true,
     low: false,
     perf: false,
     calm: false,
@@ -188,6 +188,8 @@
     lowAnnounced: false,
     grazeBox: null,
     grazeCd: 0,
+    deliveries: 0,
+    streak: 0,
     deathReason: "",
     hinted: false,
     pointerDown: false,
@@ -243,7 +245,6 @@
     el.optWeather.checked = settings.weather;
     el.optTutor.checked = settings.tutor;
     el.optDaily.checked = settings.daily;
-    el.optContracts.checked = settings.contracts;
     el.optLow.checked = settings.low;
     el.optPerf.checked = settings.perf;
     el.optCalm.checked = settings.calm;
@@ -336,6 +337,9 @@
     game.contract.state = "idle";
     game.contract.pickup = null;
     game.contract.drop = null;
+    game.deliveries = 0;
+    game.streak = 0;
+    game.player.carrying = false;
     game.contractRng = new U.Rng((game.world.startX | 0) ^ 0x9e3779b9 ^ Date.now());
     game.record.length = 0;
     game.recordTimer = 0;
@@ -376,6 +380,7 @@
         : "Асфальт не прощает";
     el.resDistance.textContent = dist;
     el.resScore.textContent = score;
+    el.resDeliveries.textContent = game.deliveries;
     el.resBest.textContent = game.best;
     el.best.textContent = game.best;
     var LABELS = {
@@ -580,7 +585,11 @@
   // ---------------------------------------------------------------------------
 
   function multiplier() {
-    return U.clamp(1 + game.combo * 0.25 + game.chain * 0.15, 1, 8);
+    return U.clamp(
+      1 + game.combo * 0.25 + game.chain * 0.15 + game.streak * 0.3,
+      1,
+      10
+    );
   }
 
   /** All score goes through here so the end screen can explain itself. */
@@ -678,7 +687,7 @@
   var CHALLENGE_POOL = [
     { id: "enemies", text: "Сбей %n врагов паутиной", min: 4, max: 7, bonus: 900 },
     { id: "orbs", text: "Собери %n энергосфер", min: 18, max: 34, bonus: 700 },
-    { id: "contracts", text: "Доставь %n груза", min: 2, max: 3, bonus: 1000 },
+    { id: "contracts", text: "Доставь %n груза", min: 3, max: 5, bonus: 1200 },
     { id: "rescues", text: "Спаси %n человек", min: 1, max: 3, bonus: 1100 },
     { id: "perfect", text: "Отпусти нить точно %n раз", min: 5, max: 10, bonus: 800 },
     { id: "chain", text: "Слепи серию из %n качаний без касания", min: 5, max: 9, bonus: 900 },
@@ -688,7 +697,26 @@
     var rng = new U.Rng(dailySeed() ^ 0x51ed270b);
     var pool = CHALLENGE_POOL.slice();
     var out = [];
-    for (var i = 0; i < 3 && pool.length; i++) {
+
+    // The courier always has a delivery quota; the rest of the day varies.
+    var quotaIndex = -1;
+    for (var q = 0; q < pool.length; q++) {
+      if (pool[q].id === "contracts") quotaIndex = q;
+    }
+    if (quotaIndex >= 0) {
+      var quota = pool.splice(quotaIndex, 1)[0];
+      var qTarget = rng.int(quota.min, quota.max);
+      out.push({
+        id: quota.id,
+        text: quota.text.replace("%n", qTarget),
+        target: qTarget,
+        bonus: quota.bonus,
+        progress: 0,
+        done: false,
+      });
+    }
+
+    for (var i = out.length; i < 3 && pool.length; i++) {
       var def = pool.splice(rng.int(0, pool.length - 1), 1)[0];
       var target = rng.int(def.min, def.max);
       out.push({
@@ -780,8 +808,9 @@
     if (!r) {
       game.rescueCd -= dt;
       if (game.rescueCd <= 0) {
-        game.rescueCd = 14 + Math.random() * 12;
         spawnRescue();
+        // No tall roof ahead: try again shortly instead of losing the event.
+        game.rescueCd = game.rescue ? 14 + Math.random() * 12 : 1.5;
       }
       return;
     }
@@ -936,7 +965,8 @@
     var p = game.player;
 
     if (c.state === "idle") {
-      var spot = pickRoof(p.pos.x, 1100, 2400);
+      var near = game.deliveries === 0 && game.distance < 30;
+      var spot = pickRoof(p.pos.x, near ? 500 : 1100, near ? 1500 : 2400);
       if (spot) {
         c.pickup = { x: spot.x, y: spot.y - 26 };
         c.state = "offer";
@@ -958,6 +988,7 @@
         c.limit = Math.max(6, (drop.x - p.pos.x) / (330 * C.PACE));
         c.timer = c.limit;
         c.state = "carry";
+        game.player.carrying = true;
         SW.audio.ping(6);
         popup(c.pickup.x, c.pickup.y - 30, "ГРУЗ ВЗЯТ", true);
         ring(c.pickup.x, c.pickup.y, "rgba(255,196,107,0.9)");
@@ -969,6 +1000,8 @@
       c.timer -= dt;
       if (c.timer <= 0) {
         popup(p.pos.x, p.pos.y - 40, "ПРОСРОЧЕНО", true);
+        game.streak = 0;
+        game.player.carrying = false;
         c.state = "idle";
         c.drop = null;
         return;
@@ -976,10 +1009,18 @@
       var ddx = p.pos.x - c.drop.x;
       var ddy = p.pos.y - c.drop.y;
       if (ddx * ddx + ddy * ddy < 60 * 60) {
-        var bonus = award("contracts", (300 + c.timer * 40) * multiplier());
+        game.deliveries++;
+        game.streak++;
+        game.player.carrying = false;
+        var bonus = award("contracts", (400 + c.timer * 50) * multiplier());
         bumpCombo(2);
         progressChallenge("contracts", 1);
-        popup(c.drop.x, c.drop.y - 40, "ДОСТАВЛЕНО +" + bonus, true);
+        popup(
+          c.drop.x,
+          c.drop.y - 40,
+          "ДОСТАВЛЕНО +" + bonus + (game.streak > 1 ? "  x" + game.streak : ""),
+          true
+        );
         ring(c.drop.x, c.drop.y, "rgba(120,240,255,0.95)");
         burst(c.drop.x, c.drop.y, 14, "#8ff0ff", 220 * C.PACE);
         SW.audio.ping(12);
@@ -1028,7 +1069,7 @@
 
       collectOrbs();
       styleScore(dt);
-      if (settings.contracts) updateContract(dt);
+      updateContract(dt);
       updateRescue(dt);
       updateGhost(dt);
 
@@ -1070,6 +1111,7 @@
     var p = game.player;
     el.distance.textContent = Math.floor(game.distance);
     el.score.textContent = Math.floor(game.score);
+    el.deliveries.textContent = game.deliveries;
     el.speed.textContent = Math.round((p.speed() / C.PIXELS_PER_METER) * 3.6);
 
     var m = multiplier();
@@ -1139,7 +1181,7 @@
   var TUTOR_TEXT = {
     1: "Зажми мышь и выстрели паутину вверх-вперёд",
     2: "Отпусти в нижней точке дуги — так сохраняется скорость",
-    3: "Shift — рывок, если падаешь и цепляться не за что",
+    3: "Забери груз на крыше и донеси до светящейся площадки",
   };
 
   function updateTutor() {
@@ -1671,7 +1713,6 @@
   bindToggle(el.optWeather, "weather");
   bindToggle(el.optTutor, "tutor");
   bindToggle(el.optDaily, "daily");
-  bindToggle(el.optContracts, "contracts");
   bindToggle(el.optLow, "low");
   bindToggle(el.optPerf, "perf");
   bindToggle(el.optCalm, "calm");

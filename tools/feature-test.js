@@ -465,7 +465,10 @@ function check(name, ok, detail) {
     g.state = "playing";
     g.rescue = null;
     g.rescueCd = 0;
-    for (let i = 0; i < 40 && !g.rescue; i++) {
+    // Spawning needs a tall roof ahead, so keep asking rather than waiting once.
+    for (let i = 0; i < 80 && !g.rescue; i++) {
+      g.rescueCd = 0;
+      p.pos.x += 60;
       await new Promise((r) => setTimeout(r, 25));
     }
     if (!g.rescue) return { skipped: "no spawn" };
