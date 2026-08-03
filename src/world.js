@@ -52,7 +52,7 @@
       gap: [320, 540],
       setback: 0,
       chimney: 0.75,
-      props: { crane: 0.7, sign: 0.08, wire: 0.7, mast: 0.35, blimp: 1 },
+      props: { crane: 0.5, sign: 0.08, wire: 0.7, mast: 0.35, blimp: 1 },
       facades: [
         ["#1c2b2e", "#0b1417"],
         ["#26261f", "#111109"],
@@ -545,9 +545,15 @@
     return box;
   };
 
-  World.prototype._push = function (w, h, isStart, forceMast) {
+  /**
+   * `roofKind` is the single structure this block is allowed to carry. Two
+   * vertical things on one roof — a chimney beside a crane tower, say — build a
+   * fence the courier cannot swing through, so only one is ever placed.
+   */
+  World.prototype._push = function (w, h, isStart, forceMast, roofKind) {
     var rng = this.rng;
     var level = LEVELS[this.levelIndex];
+    var kind = roofKind || "mast";
     var b = {
       id: this.id++,
       x: this.nextX,
@@ -557,16 +563,17 @@
       antennaH: 0,
       ax: 0,
     };
-    var mastChance = (LEVELS[this.levelIndex].props.mast || 0.6) * (h > 560 ? 1.4 : 1);
-    if (forceMast || rng.chance(mastChance)) {
+    var mastChance = (level.props.mast || 0.6) * (h > 560 ? 1.4 : 1);
+    if (forceMast || (kind === "mast" && rng.chance(mastChance))) {
       b.antennaH = h > 560 ? rng.range(140, 280) : rng.range(90, 210);
       if (forceMast) b.antennaH = Math.max(b.antennaH, HIGH_ANCHOR - h + 40);
     }
     b.ax = b.x + b.w * rng.range(0.25, 0.75);
     b.sprite = buildSprite(b, rng, level);
     b.setbacks = [];
-    // Stepped tops give extra ledges to land on and to swing around.
-    if (level.setback && h > 380 && rng.chance(level.setback)) {
+    // Stepped tops give extra ledges, but not under a crane or a chimney.
+    var stepsAllowed = kind === "mast" || kind === "sign";
+    if (stepsAllowed && level.setback && h > 380 && rng.chance(level.setback)) {
       var steps = rng.int(1, 2);
       var sw = w;
       var sy = b.top;
@@ -588,6 +595,19 @@
     return b;
   };
 
+  /** Solid things whose top edge rises above `topY` inside the span [x0, x1]. */
+  World.prototype._blockersAbove = function (x0, x1, topY) {
+    var out = [];
+    for (var i = 0; i < this.boxes.length; i++) {
+      var box = this.boxes[i];
+      if (!box.hard) continue;
+      if (box.y >= topY) continue;
+      if (box.x + box.w < x0 || box.x > x1) continue;
+      out.push(box);
+    }
+    return out;
+  };
+
   World.prototype._crane = function (b) {
     var rng = this.rng;
     var mastH = rng.range(170, 320);
@@ -595,6 +615,29 @@
     var reach = rng.range(190, 330);
     var back = rng.range(50, 90);
     var x = b.x + b.w * rng.range(0.3, 0.8);
+
+    // A jib that runs into a neighbour's chimney or billboard walls the gap
+    // off, so it is trimmed short of anything solid — or dropped entirely.
+    var blockers = this._blockersAbove(x - back, x + reach, b.top - 30);
+    for (var i = 0; i < blockers.length; i++) {
+      var box = blockers[i];
+      if (box.x > x) reach = Math.min(reach, box.x - x - 24);
+      else back = Math.min(back, x - (box.x + box.w) - 24);
+    }
+
+    // A jib that hangs just over a neighbouring roof turns the gap into a
+    // tunnel, so it stops short of any roof it does not clear by 130 px.
+    for (var n = 0; n < this.buildings.length; n++) {
+      var nb = this.buildings[n];
+      if (nb === b) continue;
+      if (nb.x + nb.w < x - back || nb.x > x + reach) continue;
+      if (jibY > nb.top - 130) {
+        if (nb.x > x) reach = Math.min(reach, nb.x - x - 20);
+        else back = Math.min(back, x - (nb.x + nb.w) - 20);
+      }
+    }
+
+    if (reach < 110 || back < 20) return null;
     var crane = {
       type: "crane",
       x: x,
@@ -666,6 +709,8 @@
     var h = rng.range(140, 300);
     var x = b.x + rng.range(10, Math.max(12, b.w - w - 10));
     var y = b.top - h;
+    // Never raise one inside a crane's working area.
+    if (this._blockersAbove(x - 30, x + w + 30, b.top - 30).length) return null;
     var prop = { type: "chimney", x: x, y: y, w: w, h: h, seed: rng.int(0, 999) };
     this.props.push(prop);
     this._box(x, y, w, h, true, prop);
@@ -888,18 +933,43 @@
         h = rng.range(level.h[0], level.h[1]);
       }
 
-      var b = this._push(w, h, false, forceHigh);
+      // One structure per roof, drawn from the level's weights so a common
+      // crane never crowds out the rarer chimneys and spires.
+      var roofKind = "mast";
+      // The first stretch after the launch pad stays free of overhangs.
+      var openingZone = this.nextX < this.startX + 950;
+      if (!forceHigh && !openingZone) {
+        var options = [["crane", props.crane || 0]];
+        if (level.chimney) options.push(["chimney", level.chimney]);
+        if (level.spire) options.push(["spire", level.spire]);
+        options.push(["sign", props.sign || 0]);
+        var total = 0;
+        var oi;
+        for (oi = 0; oi < options.length; oi++) total += options[oi][1];
+        var roll = rng.next() * Math.max(1, total);
+        for (oi = 0; oi < options.length; oi++) {
+          roll -= options[oi][1];
+          if (roll <= 0) {
+            roofKind = options[oi][0];
+            break;
+          }
+        }
+      }
+
+      var b = this._push(w, h, false, forceHigh, roofKind);
       if (b.h + b.antennaH >= HIGH_ANCHOR) this.lastHighX = b.x + b.w * 0.5;
 
-      // --- level-specific structures --------------------------------------
-      if (level.chimney && rng.chance(level.chimney)) this._chimney(b);
-      if (level.spire && rng.chance(level.spire)) this._spire(b);
-      if (level.scaffold && rng.chance(level.scaffold)) this._scaffold(b);
-      if (level.balloon && rng.chance(level.balloon)) this._balloon(b);
-
       var crane = null;
-      if (rng.chance(props.crane)) crane = this._crane(b);
-      else if (rng.chance(props.sign)) this._sign(b);
+      if (roofKind === "crane") crane = this._crane(b);
+      else if (roofKind === "chimney") this._chimney(b);
+      else if (roofKind === "spire") this._spire(b);
+      else if (roofKind === "sign") this._sign(b);
+
+      // Facade scaffolding and a tethered balloon do not crowd the roof line.
+      if (level.scaffold && rng.chance(level.scaffold)) this._scaffold(b);
+      if (level.balloon && roofKind !== "crane" && rng.chance(level.balloon)) {
+        this._balloon(b);
+      }
 
       if (this.prev) {
         var span = b.x - (this.prev.x + this.prev.w);
