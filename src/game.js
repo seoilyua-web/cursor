@@ -14,6 +14,11 @@
     score: document.getElementById("hud-score"),
     deliveries: document.getElementById("hud-deliveries"),
     web: document.getElementById("hud-web"),
+    shift: document.getElementById("hud-shift"),
+    shiftPlan: document.getElementById("shift-plan"),
+    shiftLeft: document.getElementById("shift-left"),
+    stars: document.getElementById("res-stars"),
+    optEndless: document.getElementById("opt-endless"),
     webFill: document.getElementById("web-fill"),
     webValue: document.getElementById("web-value"),
     best: document.getElementById("hud-best"),
@@ -119,6 +124,12 @@
     return h >>> 0;
   }
 
+  var STARS_KEY = "swing-stars-v1";
+
+  function starsOf(id) {
+    return parseInt(load(STARS_KEY + "-" + id, "0"), 10) || 0;
+  }
+
   function levelDef() {
     return SW.World.LEVELS[settings.level] || SW.World.LEVELS[0];
   }
@@ -195,6 +206,9 @@
     breakdown: null,
     rescue: null,
     challenges: [],
+    slowmo: 0,
+    slowCd: 0,
+    webWarned: false,
     lowTime: 0,
     lowAnnounced: false,
     deliveries: 0,
@@ -254,6 +268,8 @@
     el.optWeather.checked = settings.weather;
     el.optTutor.checked = settings.tutor;
     el.optDaily.checked = settings.daily;
+    el.optEndless.checked = settings.endless;
+    el.shift.classList.toggle("hidden", settings.endless);
     el.optLow.checked = settings.low;
     el.optPerf.checked = settings.perf;
     el.optCalm.checked = settings.calm;
@@ -343,12 +359,19 @@
       challenges: 0,
     };
     game.lowTime = 0;
+    game.slowmo = 0;
+    game.slowCd = 0;
+    game.webWarned = false;
+    game.hits = 0;
+    game.won = false;
+    game.stars = 0;
     game.lowAnnounced = false;
     game.swings = 0;
     game.deathReason = "";
     game.contract.state = "idle";
     game.contract.pickup = null;
     game.contract.drop = null;
+    game.contract.thief = null;
     game.deliveries = 0;
     game.streak = 0;
     game.player.carrying = false;
@@ -376,6 +399,34 @@
     updateTutor();
   }
 
+  var STAR_LABELS = ["план", "время", "без потерь"];
+
+  function shiftStars() {
+    var def = levelDef();
+    return [
+      game.deliveries >= def.quota,
+      game.runTime <= def.par,
+      game.hits === 0,
+    ];
+  }
+
+  function finishShift() {
+    if (game.won) return;
+    game.won = true;
+    var def = levelDef();
+    var earned = shiftStars();
+    game.stars = earned.filter(Boolean).length;
+    var prev = starsOf(def.id);
+    if (game.stars > prev) store(STARS_KEY + "-" + def.id, String(game.stars));
+    award("challenges", 600 * game.stars);
+    SW.audio.ping(14);
+    popup(game.player.pos.x, game.player.pos.y - 60, "СМЕНА СДАНА", true);
+    var runId = game.runId;
+    setTimeout(function () {
+      if (game.runId === runId) endRun();
+    }, 900);
+  }
+
   function endRun() {
     game.state = "dead";
     var dist = Math.floor(game.distance);
@@ -386,10 +437,26 @@
       store(bestKey(), String(game.best));
       saveGhost();
     }
-    el.deadTitle.textContent =
-      game.deathReason === "wall"
-        ? "Стена оказалась ближе"
-        : "Асфальт не прощает";
+    el.deadTitle.textContent = game.won
+      ? "Смена сдана"
+      : game.deathReason === "wall"
+      ? "Стена оказалась ближе"
+      : "Асфальт не прощает";
+
+    el.stars.innerHTML = "";
+    if (!settings.endless) {
+      var earned = shiftStars();
+      for (var si = 0; si < 3; si++) {
+        var cell = document.createElement("span");
+        cell.className = earned[si] && game.won ? "on" : "";
+        cell.innerHTML =
+          (earned[si] && game.won ? "★" : "☆") +
+          "<small>" +
+          STAR_LABELS[si] +
+          "</small>";
+        el.stars.appendChild(cell);
+      }
+    }
     el.resDistance.textContent = dist;
     el.resScore.textContent = score;
     el.resDeliveries.textContent = game.deliveries;
@@ -490,6 +557,22 @@
   };
 
   game.onHazardHit = function (hz) {
+    game.hits++;
+    // A red model does not just knock you off course: it takes the parcel.
+    if (
+      game.contract.state === "carry" &&
+      hz.color === "red" &&
+      hz.state === "alive" &&
+      !hz.stole
+    ) {
+      hz.stole = true;
+      hz.carrying = true;
+      game.contract.state = "stolen";
+      game.contract.thief = hz;
+      game.player.carrying = false;
+      game.streak = 0;
+      popup(hz.x, hz.y - 30, "ГРУЗ УКРАДЕН", true);
+    }
     SW.audio.crash();
     burst(game.player.pos.x, game.player.pos.y, 16, "#ff8a5a", 240 * C.PACE);
     game.cam.shake = Math.max(game.cam.shake, 14);
@@ -499,6 +582,7 @@
   };
 
   game.onSnared = function () {
+    game.hits++;
     SW.audio.crash();
     game.combo = 0;
     game.comboTimer = 0;
@@ -623,6 +707,7 @@
       award("pizzas", 50 * multiplier());
       progressChallenge("pizzas", 1);
       var gained = p.addWeb(C.WEB_PER_PIZZA);
+      game.webWarned = false;
       ring(o.x, o.y, "rgba(255,196,107,0.9)");
       burst(o.x, o.y, 6, "#ffc46b", 180);
       popup(o.x, o.y - 26, gained ? "+" + gained + " паутины" : "запас полон", true);
@@ -886,6 +971,15 @@
       if (enemy) {
         game.webShots.splice(i, 1);
         var downed = game.world.webEnemy(enemy);
+        if (downed && enemy.stole && game.contract.state === "stolen") {
+          enemy.stole = false;
+          enemy.carrying = false;
+          game.contract.state = "offer";
+          game.contract.pickup = { x: enemy.x, y: enemy.y };
+          game.contract.thief = null;
+          popup(enemy.x, enemy.y - 34, "ГРУЗ ОТБИТ", true);
+          SW.audio.ping(10);
+        }
         burst(s.x, s.y, downed ? 12 : 6, "#ffffff", 170 * C.PACE);
         if (downed) {
           var pts = award(
@@ -992,6 +1086,26 @@
       return;
     }
 
+    if (c.state === "stolen") {
+      var thief = c.thief;
+      if (!thief || thief.removed || thief.state !== "alive") {
+        // Lost him: the job is gone, a new one will turn up.
+        if (thief && thief.state === "webbed") return;
+        popup(p.pos.x, p.pos.y - 40, "ГРУЗ ПОТЕРЯН", true);
+        c.state = "idle";
+        c.thief = null;
+        c.drop = null;
+        return;
+      }
+      if (Math.abs(thief.x - p.pos.x) > 3000) {
+        popup(p.pos.x, p.pos.y - 40, "ГРУЗ ПОТЕРЯН", true);
+        c.state = "idle";
+        c.thief = null;
+        c.drop = null;
+      }
+      return;
+    }
+
     if (c.state === "carry") {
       c.timer -= dt;
       if (c.timer <= 0) {
@@ -1052,6 +1166,16 @@
     updateWebShots(dt);
     dryCd -= dt;
 
+    // One warning per drain, not a siren every frame.
+    if (!game.player.dead) {
+      if (game.player.webAmmo <= 4 && !game.webWarned) {
+        game.webWarned = true;
+        SW.audio.warn();
+      } else if (game.player.webAmmo > 6) {
+        game.webWarned = false;
+      }
+    }
+
     if (!p.dead) {
       var hz = game.world.hazardAt(p.pos.x, p.pos.y, C.PLAYER_R);
       if (hz) p.hit(hz, game);
@@ -1070,10 +1194,34 @@
       updateRescue(dt);
       updateGhost(dt);
 
+      // Last chance: the world slows while the dash is still available.
+      game.slowCd -= dt;
+      if (
+        game.slowmo <= 0 &&
+        game.slowCd <= 0 &&
+        p.canDash() &&
+        p.altitude() < C.SLOWMO_ALT &&
+        p.vel.y > 260 * C.PACE &&
+        !p.onRoof &&
+        !p.onWall
+      ) {
+        game.slowmo = C.SLOWMO_TIME;
+        game.slowCd = C.SLOWMO_COOLDOWN;
+        SW.audio.warn();
+      }
+
       var d = (p.pos.x - game.world.startX) / C.PIXELS_PER_METER;
       if (d > game.distance) {
         award("distance", d - game.distance);
         game.distance = d;
+      }
+
+      // The shift is over once both the plan and the route are done.
+      if (!settings.endless && !game.won) {
+        var def = levelDef();
+        if (game.deliveries >= def.quota && game.distance >= def.length) {
+          finishShift();
+        }
       }
       if (game.comboTimer > 0) {
         game.comboTimer -= dt;
@@ -1119,6 +1267,15 @@
       el.combo.classList.add("hidden");
     }
 
+    if (!settings.endless) {
+      var def = levelDef();
+      var left = Math.max(0, Math.ceil(def.length - game.distance));
+      var planDone = game.deliveries >= def.quota;
+      el.shiftPlan.textContent = game.deliveries + "/" + def.quota;
+      el.shiftLeft.textContent = left + " м";
+      el.shift.classList.toggle("done", planDone && left === 0);
+    }
+
     var ammo = p.webAmmo;
     el.webValue.textContent = Math.floor(ammo);
     el.webFill.style.width = ((100 * ammo) / C.WEB_MAX).toFixed(1) + "%";
@@ -1148,6 +1305,26 @@
     el.weather.textContent = parts.join(" · ");
 
     var c = game.contract;
+    if (c.state === "stolen") {
+      var thief = c.thief;
+      if (!thief || thief.removed || thief.state !== "alive") {
+        // Lost him: the job is gone, a new one will turn up.
+        if (thief && thief.state === "webbed") return;
+        popup(p.pos.x, p.pos.y - 40, "ГРУЗ ПОТЕРЯН", true);
+        c.state = "idle";
+        c.thief = null;
+        c.drop = null;
+        return;
+      }
+      if (Math.abs(thief.x - p.pos.x) > 3000) {
+        popup(p.pos.x, p.pos.y - 40, "ГРУЗ ПОТЕРЯН", true);
+        c.state = "idle";
+        c.thief = null;
+        c.drop = null;
+      }
+      return;
+    }
+
     if (c.state === "carry") {
       el.contract.classList.remove("hidden");
       el.contract.classList.toggle("urgent", c.timer < 3);
@@ -1280,6 +1457,25 @@
     if (settings.weather) {
       SW.Render.weather(ctx, cam, w, h, game.world.weather, game.time);
     }
+    if (game.state === "playing" && !p.dead && p.webAmmo <= 4) {
+      var nearest = null;
+      var bestD = 4000;
+      var list = game.world.pizzas;
+      for (var pi = 0; pi < list.length; pi++) {
+        var o = list[pi];
+        if (o.taken || o.x < p.pos.x - 300) continue;
+        var od = Math.hypot(o.x - p.pos.x, o.y - p.pos.y);
+        if (od < bestD) {
+          bestD = od;
+          nearest = o;
+        }
+      }
+      if (nearest) {
+        worldToScreen(nearest.x, nearest.y, _pt);
+        SW.Render.marker(ctx, w, h, _pt.x, _pt.y, "#ffc46b", "пицца");
+      }
+    }
+
     if (game.rescue && game.rescue.state === "fall" && game.state === "playing") {
       worldToScreen(game.rescue.x, game.rescue.y, _pt);
       SW.Render.marker(ctx, w, h, _pt.x, _pt.y, "#ffe8a8", "спаси!");
@@ -1288,6 +1484,8 @@
     var target =
       game.contract.state === "carry"
         ? game.contract.drop
+        : game.contract.state === "stolen"
+        ? game.contract.thief
         : game.contract.state === "offer"
         ? game.contract.pickup
         : null;
@@ -1299,7 +1497,11 @@
         h,
         _pt.x,
         _pt.y,
-        game.contract.state === "carry" ? "#8ff0ff" : "#ffc46b",
+        game.contract.state === "carry"
+          ? "#8ff0ff"
+          : game.contract.state === "stolen"
+          ? "#ff6a6a"
+          : "#ffc46b",
         Math.round(Math.abs(target.x - p.pos.x) / C.PIXELS_PER_METER) + " м"
       );
     }
@@ -1341,7 +1543,12 @@
     frameCount++;
 
     if (game.state === "playing" || game.state === "dead") {
-      acc += dt;
+      var scale = 1;
+      if (game.slowmo > 0) {
+        game.slowmo = Math.max(0, game.slowmo - dt);
+        scale = C.SLOWMO_SCALE;
+      }
+      acc += dt * scale;
       var steps = 0;
       while (acc >= FIXED && steps < 8) {
         step(FIXED);
@@ -1437,7 +1644,7 @@
   function outOfWeb() {
     if (dryCd > 0) return;
     dryCd = 1.2;
-    SW.audio.thud();
+    SW.audio.warn();
     popup(game.player.pos.x, game.player.pos.y - 34, "ПАУТИНА КОНЧИЛАСЬ", true);
   }
 
@@ -1744,6 +1951,7 @@
   bindToggle(el.optWeather, "weather");
   bindToggle(el.optTutor, "tutor");
   bindToggle(el.optDaily, "daily");
+  bindToggle(el.optEndless, "endless");
   bindToggle(el.optLow, "low");
   bindToggle(el.optPerf, "perf");
   bindToggle(el.optCalm, "calm");
@@ -1773,14 +1981,10 @@
         btn.innerHTML = "";
         btn.appendChild(document.createTextNode(def.name));
         var best = document.createElement("b");
-        var saved = parseInt(
-          load(
-            BEST_KEY + "-" + def.id + (settings.daily ? "-daily-" + dailySeed() : ""),
-            "0"
-          ),
-          10
-        );
-        best.textContent = saved ? saved + " очк." : "не пройдено";
+        var stars = starsOf(def.id);
+        best.textContent = stars
+          ? "★".repeat(stars) + "☆".repeat(3 - stars)
+          : "☆☆☆";
         btn.appendChild(best);
         btn.addEventListener("click", function () {
           settings.level = index;

@@ -177,6 +177,25 @@
     osc.stop(t + 0.18);
   };
 
+  /** Two descending blips: the spinneret is running dry. */
+  Audio.prototype.warn = function () {
+    if (!this.ctx || this.muted) return;
+    var t = this.ctx.currentTime;
+    for (var i = 0; i < 2; i++) {
+      var osc = this.ctx.createOscillator();
+      var gain = this.ctx.createGain();
+      var at = t + i * 0.16;
+      osc.type = "square";
+      osc.frequency.setValueAtTime(i ? 520 : 700, at);
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(0.16, at + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.13);
+      osc.connect(gain).connect(this.master);
+      osc.start(at);
+      osc.stop(at + 0.15);
+    }
+  };
+
   Audio.prototype.thud = function () {
     if (!this.ctx || this.muted) return;
     var t = this.ctx.currentTime;

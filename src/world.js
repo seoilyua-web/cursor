@@ -22,6 +22,9 @@
   var LEVELS = [
     {
       id: "centre",
+      quota: 3,
+      length: 1000,
+      par: 115,
       name: "Деловой центр",
       hint: "Башни и мачты. Учебная смена: дуги короткие, зацепов много.",
       seed: 10427,
@@ -45,6 +48,9 @@
     },
     {
       id: "industrial",
+      quota: 3,
+      length: 950,
+      par: 120,
       name: "Промзона",
       hint: "Низкие корпуса, широкие провалы. Держат трубы и стрелы кранов.",
       seed: 20521,
@@ -69,6 +75,9 @@
     },
     {
       id: "residential",
+      quota: 4,
+      length: 1200,
+      par: 130,
       name: "Спальный район",
       hint: "Ровные панельки. Выручают только тросы и аэростаты.",
       seed: 31337,
@@ -93,6 +102,9 @@
     },
     {
       id: "oldtown",
+      quota: 4,
+      length: 1000,
+      par: 120,
       name: "Старый город",
       hint: "Узкие дома и шпили. Всё близко, ошибаться некогда.",
       seed: 44011,
@@ -117,6 +129,9 @@
     },
     {
       id: "skyline",
+      quota: 3,
+      length: 1000,
+      par: 115,
       name: "Небесный квартал",
       hint: "Сверхвысотки, связанные переходами. Мост — и опора, и якорь.",
       seed: 51199,
@@ -141,6 +156,9 @@
     },
     {
       id: "site",
+      quota: 3,
+      length: 950,
+      par: 115,
       name: "Стройка",
       hint: "Каркасы и леса. Цепляться можно почти везде, падать — тоже.",
       seed: 60077,
@@ -244,6 +262,7 @@
     this.prev = null;
     this.nextBlimpX = 0;
     this.nextHazardX = 0;
+    this.waveLeft = 0;
     this.weather = { wind: 0, rain: 0, fog: 0 };
     this.target = { wind: 0, rain: 0, fog: 0 };
     this.districtIndex = 0;
@@ -268,6 +287,7 @@
     this.prev = null;
     this.nextBlimpX = 1800;
     this.nextHazardX = 2600;
+    this.waveLeft = 0;
     this.weather = { wind: 0, rain: 0, fog: 0 };
     this.target = { wind: 0, rain: 0, fog: 0 };
     this.districtIndex = 0;
@@ -388,7 +408,12 @@
 
       var speed = (z.type === "hunter" ? 150 : 190) * C.PACE;
       var want = 0;
-      if (chasing) {
+      if (z.stole) {
+        // Carrying someone else's parcel: run for it.
+        z.face = dx >= 0 ? -1 : 1;
+        want = z.face * speed * 1.35;
+        z.alert = 1;
+      } else if (chasing) {
         z.face = dx >= 0 ? 1 : -1;
         // Throwers back off when the courier gets too close.
         var keep = z.type === "netter" ? 300 : 60;
@@ -1050,9 +1075,13 @@
         this._blimp(b.x + rng.range(400, 1200));
         this.nextBlimpX = b.x + rng.range(2800, 4800) * (props.blimp || 1);
       }
-      if (this.hazardsOn && b.x > this.nextHazardX) {
+      // Rivals arrive in waves: a quiet stretch, then several blocks in a row.
+      if (this.hazardsOn && this.waveLeft > 0) {
         this._hazard(b, crane);
-        this.nextHazardX = b.x + rng.range(2200, 4200);
+        this.waveLeft--;
+      } else if (this.hazardsOn && b.x > this.nextHazardX) {
+        this.waveLeft = rng.int(2, 4);
+        this.nextHazardX = b.x + rng.range(3400, 5400);
       }
       if (this.hazardsOn && h > 300 && rng.chance(0.12)) this._turret(b);
 

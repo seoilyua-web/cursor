@@ -383,7 +383,8 @@
       uy = -1.3;
     }
     var carry = this.vel.y < 0 ? -this.vel.y * 0.3 : 0;
-    this._launch(ux, uy, C.KICK_POWER + carry, game);
+    var load = this.carrying ? 1 - 0.18 * C.CARGO_MASS * 2 : 1;
+    this._launch(ux, uy, (C.KICK_POWER + carry) * load, game);
     input.jump = false;
   };
 
@@ -426,7 +427,8 @@
       uy = -0.5;
       d = Math.hypot(ux, uy);
     }
-    var power = Math.max(C.DASH_POWER, this.speed());
+    var power =
+      Math.max(C.DASH_POWER, this.speed()) * (this.carrying ? 0.9 : 1);
     this.vel.x = (ux / d) * power;
     this.vel.y = (uy / d) * power;
     this.release();
@@ -537,6 +539,11 @@
     var moveX = stunned ? 0 : input.moveX;
     var reel = stunned ? 0 : input.reel;
 
+    // Gravity does not care about the load, but the servos do: carrying a
+    // parcel costs control authority, not weightlessness.
+    var mass = 1 + (this.carrying ? C.CARGO_MASS : 0);
+    var authority = 1 / mass;
+
     this.vel.y += C.GRAVITY * dt;
 
     var weather = world.weather || { wind: 0, rain: 0 };
@@ -554,14 +561,14 @@
 
     if (this.onRoof) {
       if (moveX !== 0) {
-        this.vel.x += moveX * C.RUN_ACCEL * dt;
+        this.vel.x += moveX * C.RUN_ACCEL * authority * dt;
         this.vel.x = U.clamp(this.vel.x, -C.RUN_MAX * 2, C.RUN_MAX * 2);
       } else {
         this.vel.x = U.damp(this.vel.x, 0, 3.2, dt);
       }
       if (this.vel.y > 0) this.vel.y = 0;
       if (input.jump && !stunned) {
-        this.vel.y = -C.JUMP_VELOCITY;
+        this.vel.y = -C.JUMP_VELOCITY * (1 - 0.16 * (mass - 1));
         this.onRoof = false;
         input.jump = false;
         if (game) game.onJump();
@@ -579,7 +586,7 @@
       var tx = -ny;
       var ty = nx;
       if (moveX !== 0) {
-        var proj = moveX * C.SWING_ACCEL * tx;
+        var proj = moveX * C.SWING_ACCEL * authority * tx;
         this.vel.x += tx * proj * dt;
         this.vel.y += ty * proj * dt;
       }
@@ -615,11 +622,11 @@
       else this.vel.y = Math.min(this.vel.y, slide);
       this.airTime = 0;
     } else {
-      this.vel.x += moveX * C.AIR_ACCEL * dt;
+      this.vel.x += moveX * C.AIR_ACCEL * authority * dt;
       this.airTime += dt;
     }
 
-    var drag = attached ? C.DRAG_ATTACHED : C.DRAG_FREE;
+    var drag = (attached ? C.DRAG_ATTACHED : C.DRAG_FREE) * (2 - mass);
     var f = Math.exp(-drag * dt);
     this.vel.x *= f;
     this.vel.y *= f;

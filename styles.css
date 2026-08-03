@@ -144,6 +144,53 @@ canvas {
   color: var(--accent);
 }
 
+.shift {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.shift b {
+  color: var(--accent-2);
+}
+
+.shift.done b {
+  color: #7dffcb;
+}
+
+.stars {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 26px;
+  letter-spacing: 0.1em;
+  color: #3a3f57;
+}
+
+.stars .on {
+  color: #ffc46b;
+  text-shadow: 0 0 18px rgba(255, 196, 107, 0.55);
+}
+
+.stars small {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-shadow: none;
+}
+
+.stars span {
+  text-align: center;
+}
+
 .web {
   position: relative;
   display: flex;

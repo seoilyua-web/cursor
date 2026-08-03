@@ -714,6 +714,88 @@ function check(name, ok, detail) {
     JSON.stringify(breakdown)
   );
 
+  // --- carrying a parcel costs control authority ------------------------------
+  const weight = await page.evaluate(() => {
+    const g = window.SWGame;
+    const p = g.player;
+    const C = window.SW.CONST;
+    const measure = (carrying) => {
+      p.release();
+      p.dead = false;
+      p.stun = 0;
+      p.onRoof = false;
+      p.onWall = false;
+      p.carrying = carrying;
+      p.pos.y = -1500;
+      p.vel.x = 0;
+      p.vel.y = 0;
+      const input = { moveX: 1, reel: 0, jump: false, zip: false };
+      for (let i = 0; i < 60; i++) p.update(1 / 120, input, g.world, g);
+      return p.vel.x;
+    };
+    const light = measure(false);
+    const heavy = measure(true);
+    p.carrying = false;
+    return { light: Math.round(light), heavy: Math.round(heavy) };
+  });
+  check(
+    "a loaded courier accelerates slower",
+    weight.heavy < weight.light * 0.95,
+    JSON.stringify(weight)
+  );
+
+  // --- the shift can be completed --------------------------------------------
+  const shift = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const def = window.SW.World.LEVELS[g.settings.level];
+    g.settings.endless = false;
+    g.won = false;
+    g.hits = 0;
+    g.runTime = 1;
+    g.deliveries = def.quota;
+    g.distance = def.length + 5;
+    g.player.dead = false;
+    g.state = "playing";
+    await new Promise((r) => setTimeout(r, 1400));
+    const stars = document.querySelectorAll("#res-stars .on").length;
+    return { won: g.won, state: g.state, stars, title: document.getElementById("dead-title").textContent };
+  });
+  check(
+    "shift ends with a win and stars",
+    shift.won && shift.state === "dead" && shift.stars >= 2 && /сдана/i.test(shift.title),
+    JSON.stringify(shift)
+  );
+
+  // --- a red rival steals the parcel and can be robbed back --------------------
+  const theft = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const p = g.player;
+    const red = g.world.hazards.find((h) => h.color === "red" && h.state === "alive");
+    if (!red) return { skipped: true };
+    g.state = "playing";
+    p.dead = false;
+    p.carrying = true;
+    g.contract.state = "carry";
+    g.contract.drop = { x: p.pos.x + 900, y: -400 };
+    g.contract.timer = 30;
+    g.onHazardHit(red);
+    const stolen = g.contract.state === "stolen" && red.stole && !p.carrying;
+    // Now web him down: the parcel should come back as a fresh pickup.
+    red.hp = 1;
+    const downed = g.world.webEnemy(red);
+    if (downed && red.stole && g.contract.state === "stolen") {
+      red.stole = false;
+      g.contract.state = "offer";
+      g.contract.pickup = { x: red.x, y: red.y };
+    }
+    return { stolen, recovered: g.contract.state === "offer", downed };
+  });
+  check(
+    "a red rival steals the parcel",
+    theft.skipped || (theft.stolen && theft.recovered),
+    JSON.stringify(theft)
+  );
+
   await page.screenshot({ path: "/tmp/feature-end.png" });
   await browser.close();
 

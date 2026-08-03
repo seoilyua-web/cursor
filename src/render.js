@@ -754,6 +754,17 @@
       rivalLimb(ctx, -3, -6, -7, -2, -9, 3, 3.4, pal.dark, RIVAL_CLOTH);
     }
 
+    // stolen parcel rides on its back
+    if (z.carrying) {
+      ctx.fillStyle = "#262a33";
+      ctx.fillRect(-15, -7, 10, 13);
+      ctx.strokeStyle = "#ffc46b";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(-15, -7, 10, 13);
+      ctx.fillStyle = "rgba(120,240,255,0.9)";
+      ctx.fillRect(-13.5, -11, 7, 3.6);
+    }
+
     // head with a visor
     ctx.fillStyle = pal.suit;
     ctx.beginPath();

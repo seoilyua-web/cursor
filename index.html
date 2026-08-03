@@ -29,6 +29,10 @@
           <div class="stat">
             <span class="label">доставлено</span><span id="hud-deliveries">0</span>
           </div>
+          <div id="hud-shift" class="shift">
+            <span class="label">план</span><b id="shift-plan">0/0</b>
+            <span class="label">финиш</span><b id="shift-left">0</b>
+          </div>
           <div id="hud-web" class="web">
             <span class="label">паутина</span>
             <b id="web-value">0</b>
@@ -147,6 +151,7 @@
               <b id="res-best">0</b>
             </div>
           </div>
+          <div id="res-stars" class="stars"></div>
           <div id="res-new" class="new-best hidden">новый рекорд</div>
           <div id="res-breakdown" class="breakdown"></div>
           <div class="tasks">
@@ -191,6 +196,7 @@
             />
           </div>
           <div class="setting toggles">
+            <label><input type="checkbox" id="opt-endless" /> Бесконечная смена: без плана и финиша</label>
             <label><input type="checkbox" id="opt-hazards" checked /> Враги и опасности</label>
             <label><input type="checkbox" id="opt-weather" checked /> Погода</label>
             <label><input type="checkbox" id="opt-tutor" checked /> Обучение</label>

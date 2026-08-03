@@ -146,6 +146,11 @@
       PERFECT_BOOST: 1.14,
       TETHER_TIME: 2.4,
       RESCUE_FALL: 0.4,
+      CARGO_MASS: 0.38,
+      SLOWMO_SCALE: 0.42,
+      SLOWMO_TIME: 0.65,
+      SLOWMO_COOLDOWN: 5,
+      SLOWMO_ALT: 165,
     },
   };
 
