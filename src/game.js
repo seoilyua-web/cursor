@@ -21,6 +21,8 @@
     district: document.getElementById("hud-district"),
     weather: document.getElementById("hud-weather"),
     dash: document.getElementById("hud-dash"),
+    contract: document.getElementById("hud-contract"),
+    contractTimer: document.getElementById("contract-timer"),
     dashFill: document.getElementById("dash-fill"),
     overlay: document.getElementById("overlay"),
     startCard: document.getElementById("start-card"),
@@ -45,6 +47,13 @@
     optWeather: document.getElementById("opt-weather"),
     optTutor: document.getElementById("opt-tutor"),
     optDaily: document.getElementById("opt-daily"),
+    optContracts: document.getElementById("opt-contracts"),
+    optLow: document.getElementById("opt-low"),
+    optPerf: document.getElementById("opt-perf"),
+    optCalm: document.getElementById("opt-calm"),
+    optShapes: document.getElementById("opt-shapes"),
+    perf: document.getElementById("hud-perf"),
+    binds: document.getElementById("binds"),
   };
 
   var SETTINGS_KEY = "swing-settings-v1";
@@ -73,6 +82,12 @@
     weather: true,
     tutor: true,
     daily: false,
+    contracts: true,
+    low: false,
+    perf: false,
+    calm: false,
+    shapes: false,
+    binds: null,
   };
   try {
     var saved = JSON.parse(load(SETTINGS_KEY, "null"));
@@ -100,7 +115,49 @@
     return settings.daily ? BEST_KEY + "-daily-" + dailySeed() : BEST_KEY;
   }
 
+  var DEFAULT_BINDS = {
+    left: ["KeyA", "ArrowLeft"],
+    right: ["KeyD", "ArrowRight"],
+    reelIn: ["KeyW", "ArrowUp"],
+    reelOut: ["KeyS", "ArrowDown"],
+    jump: ["Space"],
+    dash: ["ShiftLeft", "ShiftRight"],
+  };
+
+  var BIND_NAMES = {
+    left: "Раскачка влево",
+    right: "Раскачка вправо",
+    reelIn: "Подтянуть нить / вверх по стене",
+    reelOut: "Отпустить нить / вниз",
+    jump: "Прыжок и толчок от стены",
+    dash: "Рывок",
+  };
+
+  var binds = {};
+  var actionOf = {};
+
+  function rebuildBinds() {
+    binds = {};
+    for (var a in DEFAULT_BINDS) {
+      binds[a] = (settings.binds && settings.binds[a]) || DEFAULT_BINDS[a].slice();
+    }
+    actionOf = {};
+    for (var act in binds) {
+      for (var i = 0; i < binds[act].length; i++) actionOf[binds[act][i]] = act;
+    }
+  }
+
+  function keyLabel(code) {
+    return code
+      .replace("Key", "")
+      .replace("Digit", "")
+      .replace("Arrow", "→")
+      .replace("Left", "Shift/←")
+      .replace("Space", "Пробел");
+  }
+
   var game = {
+    aimHit: null,
     state: "menu", // menu | playing | dead | paused | settings
     world: new SW.World(1),
     player: new SW.Player(),
@@ -128,6 +185,12 @@
     spaceWeb: false,
     tutorStep: 0,
     swings: 0,
+    contract: { state: "idle", pickup: null, drop: null, timer: 0, limit: 0 },
+    ghost: null,
+    ghostIndex: 0,
+    record: [],
+    recordTimer: 0,
+    runTime: 0,
     settings: settings,
   };
 
@@ -137,6 +200,26 @@
   // ---------------------------------------------------------------------------
   // Settings plumbing
   // ---------------------------------------------------------------------------
+
+  function renderBinds() {
+    el.binds.innerHTML = "";
+    for (var act in binds) {
+      (function (action) {
+        var label = document.createElement("span");
+        label.textContent = BIND_NAMES[action];
+        var btn = document.createElement("button");
+        btn.className = "bind-key";
+        btn.textContent = binds[action].map(keyLabel).join(" / ");
+        btn.addEventListener("click", function () {
+          btn.classList.add("listening");
+          btn.textContent = "нажмите клавишу";
+          game.listening = { action: action, btn: btn };
+        });
+        el.binds.appendChild(label);
+        el.binds.appendChild(btn);
+      })(act);
+    }
+  }
 
   function applySettings() {
     SW.setPace(settings.pace);
@@ -152,6 +235,16 @@
     el.optWeather.checked = settings.weather;
     el.optTutor.checked = settings.tutor;
     el.optDaily.checked = settings.daily;
+    el.optContracts.checked = settings.contracts;
+    el.optLow.checked = settings.low;
+    el.optPerf.checked = settings.perf;
+    el.optCalm.checked = settings.calm;
+    el.optShapes.checked = settings.shapes;
+    el.perf.classList.toggle("hidden", !settings.perf);
+    SW.Render.quality = settings.low ? 0 : 1;
+    SW.Render.calm = !!settings.calm;
+    SW.Render.shapes = !!settings.shapes;
+    resize();
     store(SETTINGS_KEY, JSON.stringify(settings));
     game.best = parseInt(load(bestKey(), "0"), 10) || 0;
     el.best.textContent = game.best;
@@ -162,7 +255,7 @@
   // ---------------------------------------------------------------------------
 
   function resize() {
-    var dpr = Math.min(global.devicePixelRatio || 1, 2);
+    var dpr = Math.min(global.devicePixelRatio || 1, settings.low ? 1 : 2);
     var w = canvas.clientWidth || global.innerWidth;
     var h = canvas.clientHeight || global.innerHeight;
     canvas.width = Math.floor(w * dpr);
@@ -216,6 +309,15 @@
     game.grazeCd = 0;
     game.swings = 0;
     game.deathReason = "";
+    game.contract.state = "idle";
+    game.contract.pickup = null;
+    game.contract.drop = null;
+    game.contractRng = new U.Rng((game.world.startX | 0) ^ 0x9e3779b9 ^ Date.now());
+    game.record.length = 0;
+    game.recordTimer = 0;
+    game.runTime = 0;
+    game.ghostIndex = 0;
+    game.ghost = settings.daily ? loadGhost() : null;
   }
 
   function startRun() {
@@ -242,6 +344,7 @@
     if (isBest) {
       game.best = score;
       store(bestKey(), String(game.best));
+      saveGhost();
     }
     el.deadTitle.textContent =
       game.deathReason === "wall"
@@ -346,6 +449,7 @@
 
   function burst(x, y, n, color, spread) {
     var s = spread || 260;
+    if (settings.low) n = Math.ceil(n * 0.45);
     for (var i = 0; i < n; i++) {
       var a = Math.random() * U.TAU;
       var v = Math.random() * s;
@@ -497,6 +601,116 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Contracts: a reason to go somewhere specific instead of just forward
+  // ---------------------------------------------------------------------------
+
+  var GHOST_KEY = "swing-ghost-v1";
+  var GHOST_STEP = 0.1;
+
+  function loadGhost() {
+    try {
+      var raw = JSON.parse(load(GHOST_KEY + "-" + dailySeed(), "null"));
+      return raw && raw.length ? raw : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveGhost() {
+    if (!settings.daily || game.record.length < 20) return;
+    store(GHOST_KEY + "-" + dailySeed(), JSON.stringify(game.record));
+  }
+
+  /** A wide roof ahead of x, used for both pickup and drop points. */
+  function pickRoof(fromX, minAhead, maxAhead) {
+    game.world.ensureUpTo(fromX + maxAhead + 800);
+    var bs = game.world.buildings;
+    var options = [];
+    for (var i = 0; i < bs.length; i++) {
+      var b = bs[i];
+      var cx = b.x + b.w * 0.5;
+      if (cx < fromX + minAhead || cx > fromX + maxAhead) continue;
+      if (b.w < 100) continue;
+      options.push({ x: cx, y: b.top });
+    }
+    if (!options.length) return null;
+    return options[game.contractRng.int(0, options.length - 1)];
+  }
+
+  function updateContract(dt) {
+    var c = game.contract;
+    var p = game.player;
+
+    if (c.state === "idle") {
+      var spot = pickRoof(p.pos.x, 1100, 2400);
+      if (spot) {
+        c.pickup = { x: spot.x, y: spot.y - 26 };
+        c.state = "offer";
+      }
+      return;
+    }
+
+    if (c.state === "offer") {
+      if (p.pos.x > c.pickup.x + 900) {
+        c.state = "idle"; // missed it, offer another one further on
+        return;
+      }
+      var dx = p.pos.x - c.pickup.x;
+      var dy = p.pos.y - c.pickup.y;
+      if (dx * dx + dy * dy < 46 * 46) {
+        var drop = pickRoof(p.pos.x, 1500, 3200);
+        if (!drop) return;
+        c.drop = { x: drop.x, y: drop.y };
+        c.limit = Math.max(6, (drop.x - p.pos.x) / (330 * C.PACE));
+        c.timer = c.limit;
+        c.state = "carry";
+        SW.audio.ping(6);
+        popup(c.pickup.x, c.pickup.y - 30, "ГРУЗ ВЗЯТ", true);
+        ring(c.pickup.x, c.pickup.y, "rgba(255,196,107,0.9)");
+      }
+      return;
+    }
+
+    if (c.state === "carry") {
+      c.timer -= dt;
+      if (c.timer <= 0) {
+        popup(p.pos.x, p.pos.y - 40, "ПРОСРОЧЕНО", true);
+        c.state = "idle";
+        c.drop = null;
+        return;
+      }
+      var ddx = p.pos.x - c.drop.x;
+      var ddy = p.pos.y - c.drop.y;
+      if (ddx * ddx + ddy * ddy < 60 * 60) {
+        var bonus = Math.round((300 + c.timer * 40) * multiplier());
+        game.score += bonus;
+        bumpCombo(2);
+        popup(c.drop.x, c.drop.y - 40, "ДОСТАВЛЕНО +" + bonus, true);
+        ring(c.drop.x, c.drop.y, "rgba(120,240,255,0.95)");
+        burst(c.drop.x, c.drop.y, 14, "#8ff0ff", 220 * C.PACE);
+        SW.audio.ping(12);
+        c.state = "idle";
+        c.drop = null;
+      }
+    }
+  }
+
+  function updateGhost(dt) {
+    game.runTime += dt;
+    game.recordTimer -= dt;
+    if (game.recordTimer <= 0 && game.record.length < 3000) {
+      game.recordTimer = GHOST_STEP;
+      game.record.push(Math.round(game.player.pos.x), Math.round(game.player.pos.y));
+    }
+    if (game.ghost) {
+      game.ghostIndex = Math.min(
+        Math.floor(game.runTime / GHOST_STEP) * 2,
+        game.ghost.length - 2
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Simulation
   // ---------------------------------------------------------------------------
 
@@ -510,6 +724,8 @@
 
       collectOrbs();
       styleScore(dt);
+      if (settings.contracts) updateContract(dt);
+      updateGhost(dt);
 
       var d = (p.pos.x - game.world.startX) / C.PIXELS_PER_METER;
       if (d > game.distance) {
@@ -573,6 +789,15 @@
     if (w.rain > 0.15) parts.push("дождь");
     if (w.fog > 0.15) parts.push("туман");
     el.weather.textContent = parts.join(" · ");
+
+    var c = game.contract;
+    if (c.state === "carry") {
+      el.contract.classList.remove("hidden");
+      el.contract.classList.toggle("urgent", c.timer < 3);
+      el.contractTimer.textContent = c.timer.toFixed(1);
+    } else {
+      el.contract.classList.add("hidden");
+    }
 
     var ready = p.dashCd <= 0;
     el.dash.classList.toggle("ready", ready);
@@ -638,8 +863,9 @@
     SW.Render.parallax(ctx, cam, w, h, district);
     SW.Render.ground(ctx, cam, w, h);
 
-    var shakeX = (Math.random() - 0.5) * cam.shake;
-    var shakeY = (Math.random() - 0.5) * cam.shake;
+    var shakeAmt = settings.calm ? 0 : cam.shake;
+    var shakeX = (Math.random() - 0.5) * shakeAmt;
+    var shakeY = (Math.random() - 0.5) * shakeAmt;
 
     ctx.save();
     ctx.translate(w / 2 + shakeX, h / 2 + shakeY);
@@ -655,7 +881,15 @@
       if (settings.preview && game.previewAnchor) {
         SW.Render.preview(ctx, game.preview);
       }
-      SW.Render.aim(ctx, p, game.world, game.aim);
+      SW.Render.aim(ctx, p, game.world, game.aim, game.aimHit);
+    }
+    SW.Render.contract(ctx, game.contract, game.time);
+    if (game.ghost && game.state === "playing") {
+      SW.Render.ghost(
+        ctx,
+        game.ghost[game.ghostIndex],
+        game.ghost[game.ghostIndex + 1]
+      );
     }
     SW.Render.trail(ctx, game.trail);
     if (game.state !== "menu" && game.state !== "settings") {
@@ -669,31 +903,57 @@
     if (settings.weather) {
       SW.Render.weather(ctx, cam, w, h, game.world.weather, game.time);
     }
-    SW.Render.speedLines(ctx, w, h, intensity);
+    var target =
+      game.contract.state === "carry"
+        ? game.contract.drop
+        : game.contract.state === "offer"
+        ? game.contract.pickup
+        : null;
+    if (target && game.state === "playing") {
+      worldToScreen(target.x, target.y, _pt);
+      SW.Render.marker(
+        ctx,
+        w,
+        h,
+        _pt.x,
+        _pt.y,
+        game.contract.state === "carry" ? "#8ff0ff" : "#ffc46b",
+        Math.round(Math.abs(target.x - p.pos.x) / C.PIXELS_PER_METER) + " м"
+      );
+    }
+
+    if (!settings.calm) SW.Render.speedLines(ctx, w, h, intensity);
     SW.Render.vignette(ctx, w, h, intensity);
   }
 
-  function updatePreview() {
+  function updateAim() {
+    game.aimHit = null;
     game.previewAnchor = null;
-    if (!settings.preview) return;
     var p = game.player;
     if (game.state !== "playing" || p.dead || p.web === "attached") return;
-    var hit = p.probe(game.aim.x, game.aim.y, game.world);
-    if (!hit) return;
-    game.previewAnchor = hit;
-    p.predict(hit.x, hit.y, game.world, game.preview);
+    // The reticle shows the anchor magnetism will actually choose.
+    game.aimHit = p.aimAssist(game.aim.x, game.aim.y, game.world);
+    if (!game.aimHit || !settings.preview) return;
+    game.previewAnchor = game.aimHit;
+    // The displayed arc runs until the release point instead of a fixed time.
+    p.predict(game.aimHit.x, game.aimHit.y, game.world, game.preview, 150);
   }
 
   var last = 0;
   var acc = 0;
   var FIXED = 1 / 120;
+  var frameMs = 0;
+  var perfTimer = 0;
+  var frameCount = 0;
 
   function frame(now) {
     requestAnimationFrame(frame);
+    var frameStart = now;
     if (!last) last = now;
     var dt = Math.min((now - last) / 1000, 0.05);
     last = now;
     game.time += dt;
+    frameCount++;
 
     if (game.state === "playing" || game.state === "dead") {
       acc += dt;
@@ -713,8 +973,14 @@
       } else if (game.trail.length) {
         game.trail.shift();
       }
-      if (game.state === "playing") updateHud();
+      if (game.state === "playing") {
+        updateHud();
+        SW.audio.setWind(p.speed() / C.MAX_SPEED);
+      } else {
+        SW.audio.setWind(0);
+      }
     } else {
+      SW.audio.setWind(0);
       game.cam.x += 26 * dt;
       updateParticles(dt);
       game.world.update(dt, game.cam.x);
@@ -722,8 +988,25 @@
     }
 
     screenToWorld(game.aim.sx, game.aim.sy);
-    updatePreview();
+    // The forecast is the priciest thing per frame, so halve it when asked.
+    if (!settings.low || frameCount % 2 === 0) updateAim();
     draw();
+
+    if (settings.perf) {
+      var spent = (global.performance ? performance.now() : Date.now()) - frameStart;
+      frameMs = frameMs * 0.9 + spent * 0.1;
+      perfTimer -= dt;
+      if (perfTimer <= 0) {
+        perfTimer = 0.4;
+        el.perf.textContent =
+          frameMs.toFixed(1) +
+          " мс · " +
+          Math.round(1 / Math.max(dt, 0.0001)) +
+          " fps · " +
+          game.world.boxes.length +
+          " тел";
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -732,13 +1015,15 @@
 
   var keys = {};
 
+  function held(action) {
+    var list = binds[action] || [];
+    for (var i = 0; i < list.length; i++) if (keys[list[i]]) return true;
+    return false;
+  }
+
   function refreshMove() {
-    var left = keys["KeyA"] || keys["ArrowLeft"];
-    var right = keys["KeyD"] || keys["ArrowRight"];
-    game.input.moveX = (right ? 1 : 0) - (left ? 1 : 0);
-    var up = keys["KeyW"] || keys["ArrowUp"];
-    var down = keys["KeyS"] || keys["ArrowDown"];
-    game.input.reel = (up ? 1 : 0) - (down ? 1 : 0);
+    game.input.moveX = (held("right") ? 1 : 0) - (held("left") ? 1 : 0);
+    game.input.reel = (held("reelIn") ? 1 : 0) - (held("reelOut") ? 1 : 0);
   }
 
   function releaseWeb() {
@@ -767,10 +1052,25 @@
 
   global.addEventListener("keydown", function (e) {
     if (e.repeat) return;
+
+    if (game.listening) {
+      e.preventDefault();
+      var act = game.listening.action;
+      binds[act] = [e.code];
+      settings.binds = binds;
+      game.listening.btn.classList.remove("listening");
+      game.listening = null;
+      rebuildBinds();
+      renderBinds();
+      applySettings();
+      return;
+    }
+
     keys[e.code] = true;
     refreshMove();
 
-    if (e.code === "Space") {
+    var action = actionOf[e.code];
+    if (action === "jump") {
       e.preventDefault();
       if (game.state === "menu") {
         startRun();
@@ -785,8 +1085,13 @@
       return;
     }
 
-    if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+    if (action === "dash") {
       if (game.state === "playing") game.player.dash(game.aim.x, game.aim.y, game);
+      return;
+    }
+    if (e.code === "F3") {
+      settings.perf = !settings.perf;
+      applySettings();
       return;
     }
     if (e.code === "KeyR") {
@@ -820,7 +1125,7 @@
   global.addEventListener("keyup", function (e) {
     keys[e.code] = false;
     refreshMove();
-    if (e.code === "Space") {
+    if (actionOf[e.code] === "jump") {
       game.input.jump = false;
       if (game.spaceWeb) {
         releaseWeb();
@@ -868,6 +1173,7 @@
     function (e) {
       e.preventDefault();
       SW.audio.unlock();
+      showTouchControls();
       if (game.state === "menu" || game.state === "dead") {
         startRun();
         return;
@@ -904,6 +1210,71 @@
   canvas.addEventListener("touchend", endTouch, { passive: false });
   canvas.addEventListener("touchcancel", endTouch, { passive: false });
 
+  // ---------------------------------------------------------------------------
+  // Touch controls: a thumb layout that does not fight the aiming hand
+  // ---------------------------------------------------------------------------
+
+  var touchLayer = document.getElementById("touch");
+  var touchActs = { left: false, right: false, reelIn: false, reelOut: false };
+
+  function applyTouchMove() {
+    game.input.moveX = (touchActs.right ? 1 : 0) - (touchActs.left ? 1 : 0);
+    game.input.reel = (touchActs.reelIn ? 1 : 0) - (touchActs.reelOut ? 1 : 0);
+  }
+
+  function showTouchControls() {
+    touchLayer.classList.remove("hidden");
+  }
+
+  Array.prototype.forEach.call(
+    touchLayer.querySelectorAll(".tbtn"),
+    function (btn) {
+      var act = btn.getAttribute("data-act");
+      function down(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        btn.classList.add("held");
+        SW.audio.unlock();
+        if (act === "dash") {
+          game.player.dash(game.aim.x, game.aim.y, game);
+        } else if (act === "jump") {
+          if (game.player.onRoof || game.player.canKick()) {
+            game.input.jump = true;
+          } else if (game.player.web !== "attached") {
+            game.spaceWeb = game.player.autoShoot(game.world);
+          }
+        } else {
+          touchActs[act] = true;
+          applyTouchMove();
+        }
+      }
+      function up(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        btn.classList.remove("held");
+        if (act === "jump") {
+          game.input.jump = false;
+          if (game.spaceWeb) {
+            releaseWeb();
+            game.spaceWeb = false;
+          }
+        } else if (act !== "dash") {
+          touchActs[act] = false;
+          applyTouchMove();
+        }
+      }
+      btn.addEventListener("touchstart", down, { passive: false });
+      btn.addEventListener("touchend", up, { passive: false });
+      btn.addEventListener("touchcancel", up, { passive: false });
+      btn.addEventListener("mousedown", down);
+      btn.addEventListener("mouseup", up);
+    }
+  );
+
+  if (global.matchMedia && global.matchMedia("(pointer: coarse)").matches) {
+    showTouchControls();
+  }
+
   el.btnPlay.addEventListener("click", startRun);
   el.btnRetry.addEventListener("click", startRun);
   el.btnSettings.addEventListener("click", openSettings);
@@ -934,6 +1305,11 @@
   bindToggle(el.optWeather, "weather");
   bindToggle(el.optTutor, "tutor");
   bindToggle(el.optDaily, "daily");
+  bindToggle(el.optContracts, "contracts");
+  bindToggle(el.optLow, "low");
+  bindToggle(el.optPerf, "perf");
+  bindToggle(el.optCalm, "calm");
+  bindToggle(el.optShapes, "shapes");
 
   document.addEventListener("visibilitychange", function () {
     if (document.hidden && game.state === "playing") {
@@ -949,6 +1325,8 @@
   // ---------------------------------------------------------------------------
 
   resize();
+  rebuildBinds();
+  renderBinds();
   applySettings();
   newRun();
   game.cam.y = -420;

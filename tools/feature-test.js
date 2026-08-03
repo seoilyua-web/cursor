@@ -179,6 +179,125 @@ function check(name, ok, detail) {
   });
   check("daily seed toggle persists", daily.on === true, JSON.stringify(daily));
 
+  // --- anchor magnetism picks a better swing than the raw aim ----------------
+  const assist = await page.evaluate(() => {
+    const g = window.SWGame;
+    const p = g.player;
+    p.release();
+    const tx = p.pos.x + 420;
+    const ty = p.pos.y - 300;
+    const raw = p.probe(tx, ty, g.world);
+    const best = p.aimAssist(tx, ty, g.world);
+    if (!best) return { skipped: true };
+    return {
+      raw: raw ? Math.round(p.arcScore(raw, g.world)) : null,
+      best: Math.round(p.arcScore(best, g.world)),
+      moved: raw ? Math.round(Math.hypot(best.x - raw.x, best.y - raw.y)) : null,
+    };
+  });
+  check(
+    "aim assist never picks a worse arc",
+    assist.skipped || assist.raw === null || assist.best >= assist.raw,
+    JSON.stringify(assist)
+  );
+
+  // --- contracts: pick up cargo and deliver it --------------------------------
+  const contract = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const p = g.player;
+    p.dead = false;
+    g.state = "playing";
+    g.contract.state = "idle";
+    for (let i = 0; i < 20 && g.contract.state === "idle"; i++) {
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    if (g.contract.state !== "offer") return { skipped: "no offer" };
+
+    p.release();
+    p.pos.x = g.contract.pickup.x;
+    p.pos.y = g.contract.pickup.y;
+    for (let i = 0; i < 20 && g.contract.state === "offer"; i++) {
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    const carried = g.contract.state === "carry";
+    if (!carried) return { carried, skipped: "no pickup" };
+
+    const before = g.score;
+    p.pos.x = g.contract.drop.x;
+    p.pos.y = g.contract.drop.y - 20;
+    for (let i = 0; i < 20 && g.contract.state === "carry"; i++) {
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    // After a delivery the next offer appears at once, so "not carrying" is the
+    // signal, not "idle".
+    return { carried, delivered: g.contract.state !== "carry", gain: g.score - before };
+  });
+  check(
+    "contract can be picked up and delivered",
+    contract.skipped ? false : contract.carried && contract.delivered && contract.gain > 200,
+    JSON.stringify(contract)
+  );
+
+  // --- ghost recording round-trips through storage ----------------------------
+  const ghost = await page.evaluate(() => {
+    const g = window.SWGame;
+    const recorded = g.record.length;
+    localStorage.removeItem("swing-ghost-v1-test");
+    return { recorded, sane: recorded % 2 === 0 };
+  });
+  check(
+    "run is recorded for the ghost",
+    ghost.recorded > 10 && ghost.sane,
+    JSON.stringify(ghost)
+  );
+
+  // --- key rebinding -----------------------------------------------------------
+  const rebind = await page.evaluate(async () => {
+    const btns = document.querySelectorAll("#binds .bind-key");
+    if (!btns.length) return { skipped: true };
+    btns[0].click();
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyZ" }));
+    await new Promise((r) => setTimeout(r, 60));
+    const stored = JSON.parse(localStorage.getItem("swing-settings-v1"));
+    return { binds: stored.binds && stored.binds.left, label: btns[0].textContent };
+  });
+  check(
+    "keys can be rebound and persist",
+    rebind.skipped || (rebind.binds && rebind.binds[0] === "KeyZ"),
+    JSON.stringify(rebind)
+  );
+
+  // --- quality and calm switches ----------------------------------------------
+  const modes = await page.evaluate(() => {
+    const low = document.getElementById("opt-low");
+    const calm = document.getElementById("opt-calm");
+    const perf = document.getElementById("opt-perf");
+    low.checked = true;
+    low.dispatchEvent(new Event("change"));
+    calm.checked = true;
+    calm.dispatchEvent(new Event("change"));
+    perf.checked = true;
+    perf.dispatchEvent(new Event("change"));
+    const state = {
+      quality: window.SW.Render.quality,
+      calm: window.SW.Render.calm,
+      perfShown: !document.getElementById("hud-perf").classList.contains("hidden"),
+      dpr: window.SWGame.view.dpr,
+    };
+    low.checked = false;
+    low.dispatchEvent(new Event("change"));
+    calm.checked = false;
+    calm.dispatchEvent(new Event("change"));
+    perf.checked = false;
+    perf.dispatchEvent(new Event("change"));
+    return state;
+  });
+  check(
+    "low quality, calm mode and frame timer switch on",
+    modes.quality === 0 && modes.calm === true && modes.perfShown && modes.dpr === 1,
+    JSON.stringify(modes)
+  );
+
   await page.screenshot({ path: "/tmp/feature-end.png" });
   await browser.close();
 

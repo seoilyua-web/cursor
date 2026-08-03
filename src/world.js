@@ -651,6 +651,22 @@
     return { dist: best, box: bestBox };
   };
 
+  /** Clear air straight below a point, capped at `max`. */
+  World.prototype.clearBelow = function (x, y, max) {
+    var list = this.near(x - 2, x + 2, _scratch);
+    var step = 8;
+    for (var d = step; d <= max; d += step) {
+      var yy = y + d;
+      if (yy >= C.GROUND_Y) return d;
+      for (var i = 0; i < list.length; i++) {
+        var b = list[i];
+        if (!b.hard) continue;
+        if (x >= b.x && x <= b.x + b.w && yy >= b.y && yy <= b.y + b.h) return d;
+      }
+    }
+    return max;
+  };
+
   World.prototype.roofUnder = function (x, y, r) {
     var list = this.near(x - r, x + r, _scratch);
     for (var i = 0; i < list.length; i++) {

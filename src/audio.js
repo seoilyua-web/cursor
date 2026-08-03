@@ -21,6 +21,7 @@
     this.master = this.ctx.createGain();
     this.master.gain.value = this.muted ? 0 : this.volume;
     this.master.connect(this.ctx.destination);
+    this.startWind();
   };
 
   Audio.prototype.toggleMute = function () {
@@ -55,6 +56,37 @@
     osc.connect(filter).connect(gain).connect(this.master);
     osc.start(t);
     osc.stop(t + 0.28);
+  };
+
+  /**
+   * Continuous wind layer. Speed opens a bandpass filter and raises its gain,
+   * which sells velocity better than anything on screen.
+   */
+  Audio.prototype.startWind = function () {
+    if (!this.ctx || this.windSrc) return;
+    var src = this.ctx.createBufferSource();
+    src.buffer = this._noiseBuffer(2.5);
+    src.loop = true;
+    var filter = this.ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = 0.8;
+    filter.frequency.value = 400;
+    var gain = this.ctx.createGain();
+    gain.gain.value = 0;
+    src.connect(filter).connect(gain).connect(this.master);
+    src.start();
+    this.windSrc = src;
+    this.windFilter = filter;
+    this.windGain = gain;
+  };
+
+  /** level: 0..1, usually speed / MAX_SPEED. */
+  Audio.prototype.setWind = function (level) {
+    if (!this.windGain) return;
+    var t = this.ctx.currentTime;
+    var l = Math.max(0, Math.min(1, level));
+    this.windGain.gain.setTargetAtTime(l * l * 0.34, t, 0.12);
+    this.windFilter.frequency.setTargetAtTime(320 + l * 1500, t, 0.15);
   };
 
   Audio.prototype._noiseBuffer = function (seconds) {

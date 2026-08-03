@@ -36,11 +36,16 @@
             ><span id="hud-speed">0</span><span class="unit">км/ч</span>
           </div>
         </div>
+        <div id="hud-perf" class="perf hidden"></div>
         <div id="hud-combo" class="combo hidden">x1.0</div>
         <div id="hud-popups"></div>
         <div id="hud-bottom">
           <div id="hud-district" class="district">Деловой центр</div>
           <div id="hud-weather" class="weather"></div>
+          <div id="hud-contract" class="contract hidden">
+            <span class="contract-label">доставка</span>
+            <b id="contract-timer">0.0</b>
+          </div>
           <div id="hud-dash" class="dash ready">
             <span class="dash-key">Shift</span>
             <span class="dash-label">рывок</span>
@@ -49,6 +54,21 @@
         </div>
         <div id="hud-hint" class="hint">удерживай мышь — паутина, отпусти — полёт</div>
         <div id="hud-tutor" class="tutor hidden"></div>
+      </div>
+
+      <div id="touch" class="hidden">
+        <div class="pad pad-left">
+          <button class="tbtn" data-act="reelIn">▲</button>
+          <div class="pad-row">
+            <button class="tbtn" data-act="left">◀</button>
+            <button class="tbtn" data-act="right">▶</button>
+          </div>
+          <button class="tbtn" data-act="reelOut">▼</button>
+        </div>
+        <div class="pad pad-right">
+          <button class="tbtn wide" data-act="jump">толчок</button>
+          <button class="tbtn wide accent" data-act="dash">рывок</button>
+        </div>
       </div>
 
       <div id="overlay">
@@ -144,6 +164,20 @@
             <label><input type="checkbox" id="opt-hazards" checked /> Подвижные опасности</label>
             <label><input type="checkbox" id="opt-weather" checked /> Погода</label>
             <label><input type="checkbox" id="opt-tutor" checked /> Обучение</label>
+            <label><input type="checkbox" id="opt-contracts" checked /> Контракты на доставку</label>
+            <label><input type="checkbox" id="opt-low" /> Низкое качество (для слабых устройств)</label>
+            <label><input type="checkbox" id="opt-perf" /> Показывать время кадра</label>
+            <label><input type="checkbox" id="opt-calm" /> Спокойный режим: без тряски и полос</label>
+            <label><input type="checkbox" id="opt-shapes" /> Различать подсказки формой, а не цветом</label>
+          </div>
+
+          <div class="setting">
+            <label>Клавиши</label>
+            <div id="binds" class="binds"></div>
+            <p class="fine left">
+              Нажмите на клавишу в списке и затем на новую. Раскладка не важна —
+              учитывается физическая клавиша.
+            </p>
           </div>
           <button id="btn-settings-close" class="btn">Готово</button>
         </div>

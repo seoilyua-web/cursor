@@ -15,6 +15,7 @@
     this.webT = 0;
     this.webDur = 0.06;
     this.ropeLen = 0;
+    this.ropeTarget = 0;
     this.onRoof = false;
     this.onWall = false;
     this.wallNx = 0;
@@ -85,14 +86,57 @@
     return this.probeDir(dx / d, dy / d, world);
   };
 
-  /** Rope length a web to this anchor would settle on. */
-  Player.prototype.ropeFor = function (ax, ay) {
-    var safeLen = Math.max(C.MIN_ROPE, -ay - 150);
-    return U.clamp(
-      Math.hypot(this.pos.x - ax, this.pos.y - ay),
-      C.MIN_ROPE,
-      Math.min(C.MAX_ROPE, safeLen)
-    );
+  /**
+   * Longest rope this anchor may pay out. The bottom of the arc sits directly
+   * below the anchor, so limiting the rope to the clear air under it is what
+   * keeps a swing from ending inside the building the web is stuck to.
+   */
+  Player.prototype.ropeLimit = function (ax, ay, world) {
+    var lim = Math.min(C.MAX_ROPE, Math.max(C.MIN_ROPE, -ay - 150));
+    if (world && world.clearBelow) {
+      var air = world.clearBelow(ax, ay, C.MAX_ROPE + 80) - C.ANCHOR_CLEARANCE;
+      lim = Math.min(lim, Math.max(C.MIN_ROPE, air));
+    }
+    return lim;
+  };
+
+  var _arc = [];
+
+  /** How good a swing this anchor buys: longer arcs and reaching the bottom win. */
+  Player.prototype.arcScore = function (hit, world) {
+    this.predict(hit.x, hit.y, world, _arc, 60);
+    var s = _arc.length * 4;
+    if (_arc.release) s += 130;
+    if (_arc.stop === "ground") s -= 220;
+    if (_arc.stop === "land") s += 20;
+    return s;
+  };
+
+  /**
+   * Anchor magnetism. The player aims roughly; the game picks the best anchor
+   * within a narrow cone, judged by simulating each candidate swing. Staying
+   * close to the original aim is worth points, so intent still wins.
+   */
+  Player.prototype.aimAssist = function (tx, ty, world) {
+    var dx = tx - this.pos.x;
+    var dy = ty - this.pos.y;
+    if (Math.hypot(dx, dy) < 1) return null;
+    var base = Math.atan2(dy, dx);
+    var span = C.AIM_ASSIST_ARC;
+    var best = null;
+    var bestScore = -Infinity;
+    for (var i = -3; i <= 3; i++) {
+      var off = (span / 3) * i;
+      var a = base + off;
+      var hit = this.probeDir(Math.cos(a), Math.sin(a), world);
+      if (!hit) continue;
+      var score = this.arcScore(hit, world) - Math.abs(off) * 190;
+      if (score > bestScore) {
+        bestScore = score;
+        best = hit;
+      }
+    }
+    return best;
   };
 
   Player.prototype.shoot = function (tx, ty, world) {
@@ -101,7 +145,7 @@
     var dy = ty - this.pos.y;
     var d = Math.hypot(dx, dy);
     if (d < 1) return false;
-    var hit = this.probeDir(dx / d, dy / d, world);
+    var hit = this.aimAssist(tx, ty, world);
     if (!hit) {
       this.web = "miss";
       this.webT = 0;
@@ -161,21 +205,29 @@
    * Forward-simulate the swing this anchor would produce, so the player can see
    * where a shot leads before committing to it.
    */
-  Player.prototype.predict = function (ax, ay, world, out) {
+  Player.prototype.predict = function (ax, ay, world, out, maxSteps) {
     out.length = 0;
     var px = this.pos.x;
     var py = this.pos.y;
     var vx = this.vel.x;
     var vy = this.vel.y;
-    var rope = this.ropeFor(ax, ay);
+    var rope = U.clamp(
+      Math.hypot(this.pos.x - ax, this.pos.y - ay),
+      C.MIN_ROPE,
+      C.MAX_ROPE
+    );
+    var ropeTarget = this.ropeLimit(ax, ay, world);
     var dt = 1 / 60;
     var wind = world.weather ? world.weather.wind * C.WIND_MAX : 0;
     var drag = Math.exp(-C.DRAG_ATTACHED * dt);
     out.stop = "time";
     out.release = null;
     var prevVy = vy;
-    for (var i = 0; i < 54; i++) {
-      rope = Math.max(C.MIN_ROPE, rope - C.AUTO_REEL * dt);
+    var releaseAt = -1;
+    var steps = maxSteps || 54;
+    for (var i = 0; i < steps; i++) {
+      if (rope > ropeTarget) rope = Math.max(ropeTarget, rope - C.PULL_SPEED * dt);
+      else rope = Math.max(C.MIN_ROPE, rope - C.AUTO_REEL * dt);
       vy += C.GRAVITY * dt;
       vx += wind * dt;
       vx *= drag;
@@ -200,9 +252,13 @@
       // Bottom of the arc: the moment worth letting go, marked for the player.
       if (!out.release && i > 4 && prevVy > 0 && vy <= 0) {
         out.release = { x: px, y: py };
+        releaseAt = i;
       }
       prevVy = vy;
       if (i % 2 === 0) out.push({ x: px, y: py });
+      // Past the bottom of the arc the forecast stops being useful: the player
+      // is meant to have let go by then.
+      if (releaseAt >= 0 && i > releaseAt + 8) break;
       if (py > C.GROUND_Y - C.PLAYER_R) {
         out.stop = "ground";
         break;
@@ -353,7 +409,12 @@
       if (this.webT >= 1) {
         this.web = "attached";
         this.webT = 1;
-        this.ropeLen = this.ropeFor(this.anchor.x, this.anchor.y);
+        this.ropeLen = U.clamp(
+          Math.hypot(this.pos.x - this.anchor.x, this.pos.y - this.anchor.y),
+          C.MIN_ROPE,
+          C.MAX_ROPE
+        );
+        this.ropeTarget = this.ropeLimit(this.anchor.x, this.anchor.y, world);
         this.swingTime = 0;
         if (game) game.onAttach();
       }
@@ -418,9 +479,16 @@
         this.vel.x += tx * proj * dt;
         this.vel.y += ty * proj * dt;
       }
-      // The web reels itself in, which lifts the arc over the roofline instead
-      // of dragging it into the facade the anchor sits on.
-      this.ropeLen = Math.max(C.MIN_ROPE, this.ropeLen - C.AUTO_REEL * dt);
+      // Excess line is pulled in fast rather than snapped away, then the web
+      // keeps reeling gently so the arc rises over the roofline.
+      if (this.ropeLen > this.ropeTarget) {
+        this.ropeLen = Math.max(
+          this.ropeTarget,
+          this.ropeLen - C.PULL_SPEED * dt
+        );
+      } else {
+        this.ropeLen = Math.max(C.MIN_ROPE, this.ropeLen - C.AUTO_REEL * dt);
+      }
       if (reel !== 0) {
         this.ropeLen = U.clamp(
           this.ropeLen - reel * C.REEL_SPEED * dt,

@@ -73,20 +73,25 @@ const URL = process.argv[2] || "http://localhost:8000/index.html";
     p.pos.y = b.top + 140;
     p.vel.x = 260;
     p.vel.y = 0;
-    await new Promise((r) => setTimeout(r, 300));
-    const clinging = p.onWall;
+
+    // Wait for the grip instead of guessing a delay, then read the kick on the
+    // very next frames: later readings pick up the next collision instead.
+    let clinging = false;
+    for (let i = 0; i < 40 && !clinging; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      clinging = p.onWall;
+    }
     const before = { x: p.vel.x, y: p.vel.y };
     const nx = p.wallNx;
-    g.aim.sx = 0; // keep the reticle away from the shot direction
-    await new Promise((r) => setTimeout(r, 60));
     window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" }));
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => setTimeout(r, 24));
+    const after0 = { x: Math.round(p.vel.x), y: Math.round(p.vel.y) };
     window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" }));
     return {
       clinging,
       wallNormal: nx,
       before,
-      after: { x: Math.round(p.vel.x), y: Math.round(p.vel.y) },
+      after: after0,
     };
   });
 

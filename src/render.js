@@ -6,6 +6,9 @@
   var C = SW.CONST;
 
   var Render = {};
+  Render.quality = 1; // 1 = full, 0 = cheap effects for weak devices
+  Render.calm = false; // no shake, no speed lines
+  Render.shapes = false; // tell markers apart by shape, not only colour
 
   Render.palette = function (d) {
     var a = d.def.sky;
@@ -459,8 +462,10 @@
     for (var j = 1; j < points.length; j++) ctx.lineTo(points[j].x, points[j].y);
     ctx.stroke();
 
-    ctx.shadowColor = "rgba(143,240,255,0.8)";
-    ctx.shadowBlur = 6;
+    if (Render.quality > 0) {
+      ctx.shadowColor = "rgba(143,240,255,0.8)";
+      ctx.shadowBlur = 6;
+    }
     for (var i = 0; i < points.length; i++) {
       var t = 1 - i / points.length;
       ctx.globalAlpha = 0.3 + t * 0.55;
@@ -485,12 +490,22 @@
     }
 
     var last = points[points.length - 1];
-    var bad = points.stop === "wall" || points.stop === "ground";
-    ctx.globalAlpha = 0.85;
-    ctx.strokeStyle = points.stop === "ground" ? "#ff5a5a" : "#ffa04a";
+    ctx.globalAlpha = 0.9;
     ctx.lineWidth = 2.4;
-    if (bad) {
-      var r = 7;
+    var r = 8;
+    if (points.stop === "ground") {
+      // Fatal ending: a filled triangle, which reads without relying on colour.
+      ctx.fillStyle = Render.shapes ? "#ffffff" : "#ff5a5a";
+      ctx.strokeStyle = "#ff5a5a";
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y - r);
+      ctx.lineTo(last.x + r, last.y + r * 0.8);
+      ctx.lineTo(last.x - r, last.y + r * 0.8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else if (points.stop === "wall") {
+      ctx.strokeStyle = Render.shapes ? "#ffffff" : "#ffa04a";
       ctx.beginPath();
       ctx.moveTo(last.x - r, last.y - r);
       ctx.lineTo(last.x + r, last.y + r);
@@ -503,7 +518,7 @@
 
   Render.weather = function (ctx, cam, w, h, weather, time) {
     if (weather.rain > 0.02) {
-      var n = Math.floor(weather.rain * 160);
+      var n = Math.floor(weather.rain * (Render.quality > 0 ? 160 : 70));
       var slant = weather.wind * 0.55;
       ctx.save();
       ctx.strokeStyle = "rgba(180,210,255,0.35)";
@@ -580,6 +595,112 @@
     ctx.restore();
   };
 
+  /** Cargo waiting on a roof and the pad it has to reach. */
+  Render.contract = function (ctx, contract, time) {
+    if (!contract) return;
+    ctx.save();
+    if (contract.state === "offer" && contract.pickup) {
+      var p = contract.pickup;
+      var bob = Math.sin(time * 2.4) * 5;
+      var g = ctx.createRadialGradient(p.x, p.y + bob, 3, p.x, p.y + bob, 70);
+      g.addColorStop(0, "rgba(255,196,107,0.5)");
+      g.addColorStop(1, "rgba(255,196,107,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y + bob, 70, 0, U.TAU);
+      ctx.fill();
+
+      ctx.fillStyle = "#c98b2e";
+      ctx.fillRect(p.x - 15, p.y - 15 + bob, 30, 26);
+      ctx.strokeStyle = "#ffdc9a";
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(p.x - 15, p.y - 15 + bob, 30, 26);
+      ctx.beginPath();
+      ctx.moveTo(p.x - 15, p.y - 2 + bob);
+      ctx.lineTo(p.x + 15, p.y - 2 + bob);
+      ctx.stroke();
+    }
+
+    if (contract.state === "carry" && contract.drop) {
+      var d = contract.drop;
+      var pulse = 0.5 + Math.sin(time * 3.4) * 0.5;
+      var beam = ctx.createLinearGradient(d.x, d.y - 260, d.x, d.y);
+      beam.addColorStop(0, "rgba(120,240,255,0)");
+      beam.addColorStop(1, "rgba(120,240,255," + (0.16 + pulse * 0.14).toFixed(3) + ")");
+      ctx.fillStyle = beam;
+      ctx.fillRect(d.x - 42, d.y - 260, 84, 260);
+
+      ctx.strokeStyle = "rgba(143,240,255,0.95)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(d.x, d.y - 4, 46, 13, 0, 0, U.TAU);
+      ctx.stroke();
+      ctx.globalAlpha = 0.4 + pulse * 0.4;
+      ctx.beginPath();
+      ctx.ellipse(d.x, d.y - 4, 46 - pulse * 24, 13 - pulse * 7, 0, 0, U.TAU);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  /** Off-screen pointer towards the delivery pad, drawn in screen space. */
+  Render.marker = function (ctx, w, h, sx, sy, color, label) {
+    var pad = 46;
+    var inside = sx > pad && sx < w - pad && sy > pad && sy < h - pad;
+    if (inside) return;
+    var cx = U.clamp(sx, pad, w - pad);
+    var cy = U.clamp(sy, pad, h - pad);
+    var a = Math.atan2(sy - h / 2, sx - w / 2);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(a);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(16, 0);
+    ctx.lineTo(-9, -10);
+    ctx.lineTo(-9, 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    if (label) {
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.font = "700 12px Inter, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(label, cx, cy + 30);
+      ctx.restore();
+    }
+  };
+
+  /** Yesterday's best run, replayed as a translucent silhouette. */
+  Render.ghost = function (ctx, x, y) {
+    ctx.save();
+    ctx.globalAlpha = 0.42;
+    ctx.strokeStyle = "#7fd0ff";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x, y - 5);
+    ctx.lineTo(x, y + 6);
+    ctx.stroke();
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y + 6);
+    ctx.lineTo(x - 6, y + 15);
+    ctx.moveTo(x, y + 6);
+    ctx.lineTo(x + 6, y + 15);
+    ctx.moveTo(x, y - 3);
+    ctx.lineTo(x - 9, y - 9);
+    ctx.moveTo(x, y - 3);
+    ctx.lineTo(x + 9, y - 9);
+    ctx.stroke();
+    ctx.fillStyle = "#7fd0ff";
+    ctx.beginPath();
+    ctx.arc(x, y - 12, 6.5, 0, U.TAU);
+    ctx.fill();
+    ctx.restore();
+  };
+
   Render.trail = function (ctx, trail) {
     if (trail.length < 3) return;
     ctx.save();
@@ -639,8 +760,10 @@
 
     ctx.strokeStyle = "rgba(255,255,255,0.9)";
     ctx.lineWidth = 2.2;
-    ctx.shadowColor = "rgba(160,220,255,0.7)";
-    ctx.shadowBlur = 8;
+    if (Render.quality > 0) {
+      ctx.shadowColor = "rgba(160,220,255,0.7)";
+      ctx.shadowBlur = 8;
+    }
     ctx.beginPath();
     ctx.moveTo(hand.x, hand.y);
     ctx.quadraticCurveTo(mx, my, ex, ey);
@@ -722,13 +845,13 @@
     ctx.fillRect(0, 0, w, h);
   };
 
-  Render.aim = function (ctx, player, world, aim) {
+  Render.aim = function (ctx, player, world, aim, precomputed) {
     if (player.dead || player.web === "attached") return;
     var dx = aim.x - player.pos.x;
     var dy = aim.y - player.pos.y;
     var d = Math.hypot(dx, dy);
     if (d < 1) return;
-    var hit = player.probe(aim.x, aim.y, world);
+    var hit = precomputed || player.aimAssist(aim.x, aim.y, world);
     ctx.save();
     if (hit) {
       ctx.strokeStyle = "rgba(120,240,255,0.55)";

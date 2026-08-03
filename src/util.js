@@ -93,6 +93,7 @@
     V: {
       REEL_SPEED: 500,
       AUTO_REEL: 300,
+      PULL_SPEED: 1100,
       RUN_MAX: 620,
       JUMP_VELOCITY: 940,
       WALL_SLIDE: 150,
@@ -116,6 +117,8 @@
       PLAYER_R: 13,
       WEB_RANGE: 580,
       MIN_ANCHOR_RISE: 45,
+      ANCHOR_CLEARANCE: 60,
+      AIM_ASSIST_ARC: 0.3,
       PIXELS_PER_METER: 10,
       GROUND_Y: 0,
       KICK_COYOTE: 0.22,
