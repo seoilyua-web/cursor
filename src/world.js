@@ -774,7 +774,7 @@
       seed: rng.int(0, 9999),
     };
     this.props.push(sign);
-    this._box(x, y, w, h, true, sign);
+    this._box(x, y, w, h, false, sign);
     return sign;
   };
 
@@ -795,7 +795,7 @@
     return wire;
   };
 
-  /** Factory chimney: a thin tower to swing around, and a perch on top. */
+  /** Factory chimney: web anchor only — the courier walks through the base. */
   World.prototype._chimney = function (b) {
     var rng = this.rng;
     var w = rng.range(20, 30);
@@ -806,7 +806,7 @@
     if (this._blockersAbove(x - 30, x + w + 30, b.top - 30).length) return null;
     var prop = { type: "chimney", x: x, y: y, w: w, h: h, seed: rng.int(0, 999) };
     this.props.push(prop);
-    this._box(x, y, w, h, true, prop);
+    this._box(x, y, w, h, false, prop);
     return prop;
   };
 
@@ -1358,6 +1358,20 @@
    * slice of pizza or a rival dropped blindly on the centre ends up buried
    * inside a setback or a chimney, which reads as a blocked passage.
    */
+  World.prototype.blockedOnRoof = function (x, roofY, r) {
+    if (this.collide(x, roofY - r - 2, r)) return true;
+    var list = this.near(x - r - 4, x + r + 4, _scratch);
+    for (var i = 0; i < list.length; i++) {
+      var box = list[i];
+      if (!box.prop) continue;
+      var kind = box.prop.type;
+      if (kind !== "chimney" && kind !== "spire" && kind !== "sign") continue;
+      if (x + r < box.x || x - r > box.x + box.w) continue;
+      if (roofY >= box.y + box.h - 4) return true;
+    }
+    return false;
+  };
+
   World.prototype.freeRoofSpot = function (b, pad) {
     var r = pad || 24;
     var margin = Math.min(b.w * 0.2, 40) + r;
@@ -1365,7 +1379,7 @@
     for (var i = 0; i < 7; i++) {
       var t = i / 6;
       var x = U.lerp(b.x + margin, b.x + b.w - margin, t);
-      if (!this.collide(x, b.top - r - 2, r)) return { x: x, y: b.top };
+      if (!this.blockedOnRoof(x, b.top, r)) return { x: x, y: b.top };
     }
     return null;
   };
