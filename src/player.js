@@ -71,10 +71,24 @@
   // Webs
   // ---------------------------------------------------------------------------
 
-  /** Anchor the shot would find, or null. Webs only stick above the head. */
+  /**
+   * How far below the head a web may still stick. Normally it may not: a rope
+   * to something lower does nothing. While falling it is the opposite — a web
+   * to a ledge level with you or just under it is the only thing that arrests
+   * the drop, so the limit opens up with vertical speed.
+   */
+  Player.prototype.anchorRise = function () {
+    var fall = U.clamp(
+      (this.vel.y - 200 * C.PACE) / (700 * C.PACE),
+      0,
+      1
+    );
+    return U.lerp(C.MIN_ANCHOR_RISE, -C.FALL_ANCHOR_DROP, fall);
+  };
+
   Player.prototype.probeDir = function (dx, dy, world) {
     var hit = world.raycast(this.pos.x, this.pos.y, dx, dy, C.WEB_RANGE);
-    if (!hit || hit.y > this.pos.y - C.MIN_ANCHOR_RISE) return null;
+    if (!hit || hit.y > this.pos.y - this.anchorRise()) return null;
     return hit;
   };
 
@@ -202,8 +216,8 @@
   };
 
   /**
-   * Forward-simulate the swing this anchor would produce, so the player can see
-   * where a shot leads before committing to it.
+   * Forward-simulate the swing an anchor would produce. Not shown to the player;
+   * it is how anchor magnetism compares candidates before the web is fired.
    */
   Player.prototype.predict = function (ax, ay, world, out, maxSteps) {
     out.length = 0;
@@ -256,7 +270,7 @@
       }
       prevVy = vy;
       if (i % 2 === 0) out.push({ x: px, y: py });
-      // Past the bottom of the arc the forecast stops being useful: the player
+      // Past the bottom of the arc there is nothing left to judge: the player
       // is meant to have let go by then.
       if (releaseAt >= 0 && i > releaseAt + 8) break;
       if (py > C.GROUND_Y - C.PLAYER_R) {
@@ -264,7 +278,7 @@
         break;
       }
       // The first frames are skipped: standing on a roof or hugging a wall
-      // counts as a contact and would cut the preview off instantly.
+      // counts as a contact and would end the simulation instantly.
       if (i > 8) {
         var c = world.collide(px, py, C.PLAYER_R);
         if (c) {

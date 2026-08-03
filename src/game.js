@@ -42,7 +42,6 @@
     valPace: document.getElementById("val-pace"),
     optVolume: document.getElementById("opt-volume"),
     valVolume: document.getElementById("val-volume"),
-    optPreview: document.getElementById("opt-preview"),
     optHazards: document.getElementById("opt-hazards"),
     optWeather: document.getElementById("opt-weather"),
     optTutor: document.getElementById("opt-tutor"),
@@ -77,7 +76,6 @@
   var settings = {
     pace: 0.7,
     volume: 0.5,
-    preview: true,
     hazards: true,
     weather: true,
     tutor: true,
@@ -170,8 +168,6 @@
     shotCd: 0,
     targetEnemy: null,
     trail: [],
-    preview: [],
-    previewAnchor: null,
     time: 0,
     distance: 0,
     score: 0,
@@ -233,7 +229,6 @@
     el.valPace.textContent = settings.pace.toFixed(2);
     el.optVolume.value = Math.round(settings.volume * 100);
     el.valVolume.textContent = Math.round(settings.volume * 100);
-    el.optPreview.checked = settings.preview;
     el.optHazards.checked = settings.hazards;
     el.optWeather.checked = settings.weather;
     el.optTutor.checked = settings.tutor;
@@ -304,7 +299,6 @@
     game.shotCd = 0;
     game.targetEnemy = null;
     game.trail.length = 0;
-    game.preview.length = 0;
     game.distance = 0;
     game.score = 0;
     game.combo = 0;
@@ -973,9 +967,6 @@
     }
 
     if (game.state === "playing" && !p.dead) {
-      if (settings.preview && game.previewAnchor) {
-        SW.Render.preview(ctx, game.preview);
-      }
       SW.Render.aim(ctx, p, game.world, game.aim, game.aimHit);
     }
     SW.Render.contract(ctx, game.contract, game.time);
@@ -1023,7 +1014,6 @@
 
   function updateAim() {
     game.aimHit = null;
-    game.previewAnchor = null;
     game.targetEnemy = null;
     var p = game.player;
     if (game.state !== "playing" || p.dead) return;
@@ -1036,10 +1026,6 @@
     if (p.web === "attached") return;
     // The reticle shows the anchor magnetism will actually choose.
     game.aimHit = p.aimAssist(game.aim.x, game.aim.y, game.world);
-    if (!game.aimHit || !settings.preview) return;
-    game.previewAnchor = game.aimHit;
-    // The displayed arc runs until the release point instead of a fixed time.
-    p.predict(game.aimHit.x, game.aimHit.y, game.world, game.preview, 150);
   }
 
   var last = 0;
@@ -1091,7 +1077,7 @@
     }
 
     screenToWorld(game.aim.sx, game.aim.sy);
-    // The forecast is the priciest thing per frame, so halve it when asked.
+    // Anchor magnetism simulates candidate swings, so halve it when asked.
     if (!settings.low || frameCount % 2 === 0) updateAim();
     draw();
 
@@ -1407,7 +1393,6 @@
       applySettings();
     });
   }
-  bindToggle(el.optPreview, "preview");
   bindToggle(el.optHazards, "hazards");
   bindToggle(el.optWeather, "weather");
   bindToggle(el.optTutor, "tutor");

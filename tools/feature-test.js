@@ -46,8 +46,8 @@ function check(name, ok, detail) {
   await page.click("#btn-play");
   await new Promise((r) => setTimeout(r, 500));
 
-  // --- trajectory preview ----------------------------------------------------
-  const preview = await page.evaluate(async () => {
+  // --- the reticle resolves to a real anchor ---------------------------------
+  const aim = await page.evaluate(async () => {
     const g = window.SWGame;
     const p = g.player;
     let found = null;
@@ -56,17 +56,37 @@ function check(name, ok, detail) {
       found = p.probeDir(Math.cos(a), Math.sin(a), g.world);
     }
     if (!found) return { skipped: true };
-    const sx = (found.x - g.cam.x) * g.cam.zoom + g.view.w / 2;
-    const sy = (found.y - g.cam.y) * g.cam.zoom + g.view.h / 2;
-    g.aim.sx = sx;
-    g.aim.sy = sy;
+    g.aim.sx = (found.x - g.cam.x) * g.cam.zoom + g.view.w / 2;
+    g.aim.sy = (found.y - g.cam.y) * g.cam.zoom + g.view.h / 2;
     await new Promise((r) => setTimeout(r, 120));
-    return { points: g.preview.length, anchor: !!g.previewAnchor };
+    return { hit: !!g.aimHit, noArcState: g.preview === undefined };
   });
   check(
-    "aiming builds a ghost arc",
-    preview.skipped || (preview.points > 4 && preview.anchor),
-    JSON.stringify(preview)
+    "aiming resolves to an anchor and no ghost arc is kept",
+    aim.skipped || (aim.hit && aim.noArcState),
+    JSON.stringify(aim)
+  );
+
+  // --- webs can be fired while falling ---------------------------------------
+  const falling = await page.evaluate(() => {
+    const g = window.SWGame;
+    const p = g.player;
+    p.release();
+    p.vel.y = 0;
+    const still = p.anchorRise();
+    p.vel.y = 900 * window.SW.CONST.PACE;
+    const dropping = p.anchorRise();
+    // A ledge exactly level with the head: refused when steady, allowed in a fall.
+    const level = { x: p.pos.x + 200, y: p.pos.y };
+    const okStill = level.y <= p.pos.y - still;
+    const okFalling = level.y <= p.pos.y - dropping;
+    p.vel.y = 0;
+    return { still: Math.round(still), dropping: Math.round(dropping), okStill, okFalling };
+  });
+  check(
+    "falling opens up anchors at and below head level",
+    falling.dropping < 0 && !falling.okStill && falling.okFalling,
+    JSON.stringify(falling)
   );
 
   // --- rescue dash through the real key handler ------------------------------

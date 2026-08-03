@@ -112,7 +112,54 @@ function run(label, seed, action) {
   return ok;
 }
 
+/**
+ * A hero dropping through a gap must be able to web a ledge next to or slightly
+ * below the head; standing still, the same shot has to be refused.
+ */
+function fallShotTest(seed) {
+  const world = new SW.World(seed);
+  world.reset(seed);
+  world.ensureUpTo(14000);
+  const player = new SW.Player();
+
+  let tried = 0;
+  let steadyOk = 0;
+  let fallingOk = 0;
+  for (const b of world.buildings) {
+    // Deep in a canyon: the roof is out of web range, so the only thing the ray
+    // can reach is the facade itself, level with the head.
+    if (b.h < 780) continue;
+    const x = b.x - 120;
+    const y = b.top + 640;
+    if (world.clearance(x, y, 90).dist < 70) continue;
+    tried++;
+
+    // Straight at the facade and slightly downward, bypassing the aim cone so
+    // only the head-height rule decides.
+    const len = Math.hypot(300, 170);
+    const dx = 300 / len;
+    const dy = 170 / len;
+
+    player.reset(x, y);
+    player.vel.x = 0;
+    player.vel.y = 0;
+    if (player.probeDir(dx, dy, world)) steadyOk++;
+
+    player.vel.y = 900 * C.PACE;
+    if (player.probeDir(dx, dy, world)) fallingOk++;
+    if (tried > 25) break;
+  }
+
+  const ok = tried > 0 && fallingOk > steadyOk;
+  console.log(
+    `${ok ? "PASS" : "FAIL"} web while falling` +
+      ` spots=${tried} steady=${steadyOk} falling=${fallingOk}`
+  );
+  return ok;
+}
+
 let ok = true;
+ok = fallShotTest(2468) && ok;
 ok = run("plain kick", 4242, (input) => (input.jump = true)) && ok;
 ok =
   run("kick away (holding out)", 909, (input, p) => {
