@@ -31,6 +31,9 @@
     this.limbPhase = 0;
     this.swingTime = 0;
     this.airTime = 0;
+    this.bottomAt = -1;
+    this.releasePerfect = false;
+    this.tether = null;
   }
 
   Player.prototype.reset = function (x, y) {
@@ -53,6 +56,9 @@
     this.facing = 1;
     this.swingTime = 0;
     this.airTime = 0;
+    this.bottomAt = -1;
+    this.releasePerfect = false;
+    this.tether = null;
   };
 
   Player.prototype.attached = function () {
@@ -154,7 +160,8 @@
   };
 
   Player.prototype.shoot = function (tx, ty, world) {
-    if (this.dead || this.stun > 0) return false;
+    // A net pins the arms: no webs until it is torn off.
+    if (this.dead || this.stun > 0 || this.tether) return false;
     var dx = tx - this.pos.x;
     var dy = ty - this.pos.y;
     var d = Math.hypot(dx, dy);
@@ -207,7 +214,23 @@
     return this.shoot(best.x, best.y, world);
   };
 
+  /**
+   * Letting go at the bottom of the arc is the whole skill of the game, so the
+   * release records how close it was and hands the player back some speed.
+   */
   Player.prototype.release = function () {
+    this.releasePerfect = false;
+    if (this.web === "attached") {
+      if (this.bottomAt >= 0) {
+        var off = Math.abs(this.swingTime - this.bottomAt);
+        if (off < C.PERFECT_WINDOW) {
+          this.releasePerfect = true;
+          this.vel.x *= C.PERFECT_BOOST;
+          this.vel.y *= C.PERFECT_BOOST;
+        }
+      }
+      this.bottomAt = -1;
+    }
     if (this.web === "attached" || this.web === "flying") {
       this.web = "none";
       this.webT = 0;
@@ -306,6 +329,7 @@
   };
 
   Player.prototype._launch = function (ux, uy, power, game) {
+    this.breakTether(game);
     var d = Math.hypot(ux, uy) || 1;
     this.vel.x = (ux / d) * power;
     this.vel.y = (uy / d) * power;
@@ -352,6 +376,22 @@
     this._launch(ux, uy, C.KICK_POWER, game);
   };
 
+  /** Caught in a net: dragged towards the thrower until the hero breaks free. */
+  Player.prototype.snare = function (source, game) {
+    if (this.dead) return false;
+    this.release();
+    this.tether = { x: source.x, y: source.y, obj: source.obj || null, t: C.TETHER_TIME };
+    if (game) game.onSnared(this);
+    return true;
+  };
+
+  Player.prototype.breakTether = function (game) {
+    if (!this.tether) return false;
+    this.tether = null;
+    if (game) game.onTetherBreak(this);
+    return true;
+  };
+
   /** One-shot burst of speed towards the aim; the way out of a doomed fall. */
   Player.prototype.dash = function (tx, ty, game) {
     if (!this.canDash()) return false;
@@ -367,6 +407,7 @@
     this.vel.x = (ux / d) * power;
     this.vel.y = (uy / d) * power;
     this.release();
+    this.breakTether(game);
     this.onWall = false;
     this.onRoof = false;
     this.dashCd = C.DASH_COOLDOWN;
@@ -414,8 +455,26 @@
     var stunned = this.stun > 0;
 
     if (this.anchorObj) {
-      this.anchor.x = this.anchorObj.x + this.anchorOff.x;
-      this.anchor.y = this.anchorObj.y + this.anchorOff.y;
+      if (this.anchorObj.removed) this.release();
+      else {
+        this.anchor.x = this.anchorObj.x + this.anchorOff.x;
+        this.anchor.y = this.anchorObj.y + this.anchorOff.y;
+      }
+    }
+
+    if (this.tether) {
+      var tobj = this.tether.obj;
+      if (tobj) {
+        if (tobj.removed || tobj.state !== "alive") this.breakTether(game);
+        else {
+          this.tether.x = tobj.x;
+          this.tether.y = tobj.y;
+        }
+      }
+      if (this.tether) {
+        this.tether.t -= dt;
+        if (this.tether.t <= 0) this.breakTether(game);
+      }
     }
 
     if (this.web === "flying") {
@@ -462,6 +521,14 @@
       this.vel.x += weather.wind * C.WIND_MAX * dt;
     }
 
+    if (this.tether) {
+      var tdx = this.tether.x - this.pos.x;
+      var tdy = this.tether.y - this.pos.y;
+      var td = Math.hypot(tdx, tdy) || 1;
+      this.vel.x += (tdx / td) * C.TETHER_PULL * dt;
+      this.vel.y += (tdy / td) * C.TETHER_PULL * dt * 0.4 + C.TETHER_PULL * dt * 0.5;
+    }
+
     if (this.onRoof) {
       if (moveX !== 0) {
         this.vel.x += moveX * C.RUN_ACCEL * dt;
@@ -503,7 +570,12 @@
       } else {
         this.ropeLen = Math.max(C.MIN_ROPE, this.ropeLen - C.AUTO_REEL * dt);
       }
-      if (reel !== 0) {
+      if (input.zip) {
+        // Zip: haul yourself up the line instead of waiting for the swing.
+        this.ropeLen = Math.max(C.MIN_ROPE, this.ropeLen - C.ZIP_SPEED * dt);
+        this.vel.x -= nx * C.ZIP_ACCEL * dt;
+        this.vel.y -= ny * C.ZIP_ACCEL * dt;
+      } else if (reel !== 0) {
         this.ropeLen = U.clamp(
           this.ropeLen - reel * C.REEL_SPEED * dt,
           C.MIN_ROPE,
@@ -554,6 +626,22 @@
           this.vel.y -= uy * vn;
         }
       }
+    }
+
+    if (attached) {
+      // Bottom of the arc: vertical speed flips sign, and it flips inside the
+      // rope constraint above, not from gravity, so it is checked after it.
+      if (
+        this.bottomAt < 0 &&
+        this.swingTime > 0.08 &&
+        this._lastVy > 0 &&
+        this.vel.y <= 0
+      ) {
+        this.bottomAt = this.swingTime;
+      }
+      this._lastVy = this.vel.y;
+    } else {
+      this._lastVy = 0;
     }
 
     if (Math.abs(this.vel.x) > 40 * C.PACE) this.facing = this.vel.x > 0 ? 1 : -1;

@@ -89,6 +89,8 @@
       AIR_ACCEL: 780,
       RUN_ACCEL: 2600,
       WIND_MAX: 340,
+      ZIP_ACCEL: 1500,
+      TETHER_PULL: 820,
     },
     V: {
       REEL_SPEED: 500,
@@ -111,6 +113,8 @@
       DRAG_ATTACHED: 0.035,
       HIT_KNOCKBACK: 620,
       WEB_SHOT_SPEED: 1500,
+      ZIP_SPEED: 900,
+      NET_SPEED: 300,
     },
     FIXED: {
       MAX_ROPE: 560,
@@ -133,6 +137,10 @@
       WEB_SHOT_R: 13,
       WEB_SHOT_CD: 0.22,
       WEB_SHOT_LIFE: 0.75,
+      PERFECT_WINDOW: 0.13,
+      PERFECT_BOOST: 1.14,
+      TETHER_TIME: 2.4,
+      RESCUE_FALL: 0.4,
     },
   };
 

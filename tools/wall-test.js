@@ -37,8 +37,10 @@ const noop = {
   onJump() {},
   onScrape() {},
   onKick() {},
-    onDash() {},
+  onDash() {},
     onHazardHit() {},
+    onSnared() {},
+    onTetherBreak() {},
 };
 
 function freeSpot(world, b, dyFromTop) {
@@ -82,7 +84,7 @@ function run(label, seed, action) {
   player.reset(spot.x, spot.y);
   player.vel.x = 240;
   player.vel.y = 0;
-  const input = { moveX: 0, reel: 0, jump: false };
+  const input = { moveX: 0, reel: 0, jump: false, zip: false };
 
   let clingFrames = 0;
   let maxSlide = 0;

@@ -97,6 +97,8 @@ const noopGame = {
   onKick() {},
   onDash() {},
   onHazardHit() {},
+    onSnared() {},
+    onTetherBreak() {},
 };
 
 function fly(seed, seconds) {
@@ -112,7 +114,7 @@ function fly(seed, seconds) {
     },
   });
 
-  const input = { moveX: 1, reel: 0, jump: false };
+  const input = { moveX: 1, reel: 0, jump: false, zip: false };
   const dt = 1 / 120;
   let shootCd = 0;
   let stuck = 0;

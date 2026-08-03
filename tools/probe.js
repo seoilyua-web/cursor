@@ -47,9 +47,11 @@ const game = {
   onKick() {},
     onDash() {},
     onHazardHit() {},
+    onSnared() {},
+    onTetherBreak() {},
 };
 
-const input = { moveX: 1, reel: 0, jump: false };
+const input = { moveX: 1, reel: 0, jump: false, zip: false };
 const dt = 1 / 120;
 let t = 0;
 let shootCooldown = 0;

@@ -457,6 +457,100 @@ function check(name, ok, detail) {
   });
   check("enemy fire stuns the player", shotHit.stun > 0, JSON.stringify(shotHit));
 
+  // --- rescue: someone falls and gets caught ---------------------------------
+  const rescue = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const p = g.player;
+    p.dead = false;
+    g.state = "playing";
+    g.rescue = null;
+    g.rescueCd = 0;
+    for (let i = 0; i < 40 && !g.rescue; i++) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    if (!g.rescue) return { skipped: "no spawn" };
+    const spot = { x: g.rescue.x, y: g.rescue.y };
+    p.release();
+    p.pos.x = spot.x - 300;
+    p.pos.y = spot.y;
+    for (let i = 0; i < 40 && g.rescue && g.rescue.state === "wait"; i++) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    const falling = !!g.rescue && g.rescue.state === "fall";
+    const before = g.breakdown.rescues;
+    for (let i = 0; i < 60 && g.rescue; i++) {
+      p.pos.x = g.rescue.x;
+      p.pos.y = g.rescue.y;
+      p.vel.x = 0;
+      p.vel.y = 0;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    return { falling, gain: Math.round(g.breakdown.rescues - before) };
+  });
+  check(
+    "a falling civilian can be caught",
+    rescue.skipped ? false : rescue.falling && rescue.gain > 200,
+    JSON.stringify(rescue)
+  );
+
+  // --- daily challenges --------------------------------------------------------
+  const tasks = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const list = g.challenges.map((c) => ({ id: c.id, target: c.target }));
+    const rows = document.querySelectorAll("#start-tasks .task").length;
+    return { count: g.challenges.length, list, rows };
+  });
+  check(
+    "three daily tasks are generated and listed",
+    tasks.count === 3 && tasks.rows === 3,
+    JSON.stringify(tasks.list)
+  );
+
+  // --- air chain and its reset -------------------------------------------------
+  const chain = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const p = g.player;
+    p.dead = false;
+    g.state = "playing";
+    // Clear sky: touching anything resets the chain by design.
+    p.release();
+    p.onRoof = false;
+    p.onWall = false;
+    p.wallTimer = 0;
+    p.pos.y = -1700;
+    p.vel.x = 0;
+    p.vel.y = 0;
+    g.chain = 4;
+    await new Promise((r) => setTimeout(r, 90)); // let a frame refresh the HUD
+    const shown = !document.getElementById("hud-chain").classList.contains("hidden");
+    g.onLand(0);
+    return { shown, afterLand: g.chain };
+  });
+  check(
+    "air chain shows in the HUD and resets on landing",
+    chain.shown && chain.afterLand === 0,
+    JSON.stringify(chain)
+  );
+
+  // --- score breakdown on the end screen ---------------------------------------
+  const breakdown = await page.evaluate(async () => {
+    const g = window.SWGame;
+    g.breakdown.enemies = 300;
+    g.breakdown.style = 120;
+    g.player.dead = false; // kill() ignores an already dead hero
+    g.state = "playing";
+    g.kill("ground");
+    await new Promise((r) => setTimeout(r, 1100));
+    const rows = document.querySelectorAll("#res-breakdown div").length;
+    const tasks = document.querySelectorAll("#dead-tasks .task").length;
+    return { rows, tasks, state: g.state };
+  });
+  check(
+    "end screen explains where the score came from",
+    breakdown.rows >= 2 && breakdown.tasks === 3,
+    JSON.stringify(breakdown)
+  );
+
   await page.screenshot({ path: "/tmp/feature-end.png" });
   await browser.close();
 

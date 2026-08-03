@@ -278,6 +278,7 @@
         z.y += z.fall * dt;
         z.x += z.vx * 0.3 * dt;
         if (z.y > C.GROUND_Y - 6 || this.collide(z.x, z.y, z.r * 0.6)) {
+          z.removed = true;
           this.hazards.splice(h, 1);
         }
         continue;
@@ -298,6 +299,24 @@
         } else {
           z.alert = Math.max(0, z.alert - dt);
           z.y = z.baseY + Math.sin(z.phase * 1.5) * z.amp;
+        }
+        z.x += z.vx * dt;
+      } else if (z.type === "netter") {
+        // Keeps its distance and throws nets instead of ramming.
+        z.y = z.baseY + Math.sin(z.phase * 1.2) * z.amp;
+        if (dist < 620) {
+          z.alert = Math.min(1, z.alert + dt * 2);
+          var want = 360;
+          var push = dist < want ? -1 : 1;
+          z.vx = U.damp(z.vx, (dx / dist) * 150 * C.PACE * push, 1.4, dt);
+          z.baseY = U.damp(z.baseY, py - 120, 0.7, dt);
+          z.fireCd -= dt;
+          if (z.fireCd <= 0) {
+            z.fireCd = 3.1;
+            this._fire(z, px, py, C.NET_SPEED / C.PACE, true);
+          }
+        } else {
+          z.alert = Math.max(0, z.alert - dt);
         }
         z.x += z.vx * dt;
       } else if (z.type === "heli") {
@@ -331,19 +350,22 @@
   };
 
   /** Enemy shot, aimed slightly ahead of where the player is now. */
-  World.prototype._fire = function (z, px, py, speed) {
+  World.prototype._fire = function (z, px, py, speed, isNet) {
     var sp = speed * C.PACE;
     var dx = px - z.x;
     var dy = py - z.y;
     var d = Math.hypot(dx, dy) || 1;
     this.shots.push({
       hostile: true,
+      net: !!isNet,
+      src: z,
       x: z.x,
       y: z.y,
       vx: (dx / d) * sp,
       vy: (dy / d) * sp,
-      r: 8,
-      life: 3.2,
+      r: isNet ? 17 : 8,
+      life: isNet ? 4 : 3.2,
+      spin: 0,
     });
   };
 
@@ -351,8 +373,10 @@
     for (var i = this.shots.length - 1; i >= 0; i--) {
       var s = this.shots[i];
       s.life -= dt;
+      s.spin += dt * 6;
       s.x += s.vx * dt;
       s.y += s.vy * dt;
+      if (s.net) s.vy += C.GRAVITY * 0.25 * dt;
       if (
         s.life <= 0 ||
         s.y > C.GROUND_Y ||
@@ -553,6 +577,22 @@
           contact: true,
         })
       );
+    } else if (rng.chance(0.3)) {
+      var ny = -rng.range(320, 760);
+      this.hazards.push(
+        baseEnemy({
+          type: "netter",
+          x: x,
+          y: ny,
+          baseY: ny,
+          amp: 30,
+          r: 17,
+          vx: -rng.range(20, 50) * C.PACE,
+          phase: rng.range(0, U.TAU),
+          hostile: true,
+          contact: false,
+        })
+      );
     } else {
       var n = rng.int(1, 3);
       for (var i = 0; i < n; i++) {
@@ -681,7 +721,10 @@
       if (right < x) this.props.splice(i, 1);
     }
     for (i = this.hazards.length - 1; i >= 0; i--) {
-      if (this.hazards[i].x + 200 < x) this.hazards.splice(i, 1);
+      if (this.hazards[i].x + 200 < x) {
+        this.hazards[i].removed = true;
+        this.hazards.splice(i, 1);
+      }
     }
     for (i = this.shots.length - 1; i >= 0; i--) {
       if (this.shots[i].x + 200 < x) this.shots.splice(i, 1);
@@ -710,6 +753,15 @@
   }
 
   World.prototype.softAt = function (x, y) {
+    // A cocooned enemy still hangs in the air for a moment: web it and swing.
+    for (var k = 0; k < this.hazards.length; k++) {
+      var z = this.hazards[k];
+      if (z.state !== "webbed") continue;
+      var zdx = x - z.x;
+      var zdy = y - z.y;
+      var zr = z.r + 8;
+      if (zdx * zdx + zdy * zdy <= zr * zr) return z;
+    }
     for (var i = 0; i < this.props.length; i++) {
       var p = this.props[i];
       if (p.type === "wire") {
@@ -752,7 +804,7 @@
           x: x,
           y: soft.type === "wire" ? wireY(soft, x) : y,
           dist: travelled,
-          obj: soft.type === "blimp" ? soft : null,
+          obj: soft.state === "webbed" || soft.type === "blimp" ? soft : null,
         };
       }
 

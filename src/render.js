@@ -491,6 +491,38 @@
     ctx.fill();
   }
 
+  function drawNetter(ctx, z, time) {
+    ctx.save();
+    ctx.translate(z.x, z.y);
+    ctx.rotate(Math.sin(time * 1.6 + z.phase) * 0.1);
+    ctx.strokeStyle = "#2e5548";
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(-16, -5);
+    ctx.lineTo(16, -5);
+    ctx.stroke();
+    ctx.fillStyle = "#1d3b33";
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 13, 10, 0, 0, U.TAU);
+    ctx.fill();
+    ctx.fillStyle = z.alert > 0.2 ? "#7dffcb" : "rgba(125,255,203,0.35)";
+    ctx.beginPath();
+    ctx.arc(0, 2, 4, 0, U.TAU);
+    ctx.fill();
+    var spin = time * 26 + z.phase;
+    ctx.strokeStyle = "rgba(190,255,230,0.5)";
+    ctx.lineWidth = 1.5;
+    for (var i = 0; i < 2; i++) {
+      var sx = i ? 16 : -16;
+      var rr = 8 * Math.abs(Math.cos(spin + i));
+      ctx.beginPath();
+      ctx.moveTo(sx - rr, -5);
+      ctx.lineTo(sx + rr, -5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   Render.hazards = function (ctx, world, cam, w, time) {
     var half = w / (2 * cam.zoom) + 300;
     ctx.save();
@@ -504,6 +536,7 @@
       drawAlert(ctx, z, time);
       if (z.type === "heli") drawHeli(ctx, z, time);
       else if (z.type === "turret") drawTurret(ctx, z);
+      else if (z.type === "netter") drawNetter(ctx, z, time);
       else drawDrone(ctx, z, time);
     }
     ctx.restore();
@@ -542,6 +575,27 @@
     ctx.save();
     for (var i = 0; i < shots.length; i++) {
       var s = shots[i];
+      if (s.net) {
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(s.spin);
+        ctx.strokeStyle = "rgba(160,255,215,0.9)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (var k = -1; k <= 1; k++) {
+          ctx.moveTo(-s.r, k * 8);
+          ctx.lineTo(s.r, k * 8);
+          ctx.moveTo(k * 8, -s.r);
+          ctx.lineTo(k * 8, s.r);
+        }
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(160,255,215,0.5)";
+        ctx.beginPath();
+        ctx.arc(0, 0, s.r, 0, U.TAU);
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
       var g = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, 22);
       g.addColorStop(0, "rgba(255,150,90,0.95)");
       g.addColorStop(1, "rgba(255,90,60,0)");
@@ -744,6 +798,75 @@
       ctx.fillText(label, cx, cy + 30);
       ctx.restore();
     }
+  };
+
+  /** Someone dropping from a roof; the only timed emergency in the game. */
+  Render.rescue = function (ctx, r, time) {
+    if (!r) return;
+    var flail = Math.sin(time * 14) * 0.7;
+    ctx.save();
+    if (r.state === "wait") {
+      // Still hanging on: a blinking beacon so the player can plan the line.
+      var pulse = 0.5 + Math.sin(time * 5) * 0.5;
+      var g = ctx.createRadialGradient(r.x, r.y, 3, r.x, r.y, 90);
+      g.addColorStop(0, "rgba(255,232,168," + (0.25 + pulse * 0.2).toFixed(3) + ")");
+      g.addColorStop(1, "rgba(255,232,168,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 90, 0, U.TAU);
+      ctx.fill();
+    }
+
+    ctx.translate(r.x, r.y);
+    ctx.rotate(r.state === "fall" ? Math.sin(time * 6) * 0.35 : 0);
+    ctx.strokeStyle = "#2f3a63";
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(0, -4);
+    ctx.lineTo(0, 6);
+    ctx.moveTo(0, 6);
+    ctx.lineTo(-5, 15 + flail * 2);
+    ctx.moveTo(0, 6);
+    ctx.lineTo(6, 15 - flail * 2);
+    ctx.moveTo(0, -2);
+    ctx.lineTo(-11, -10 - flail * 5);
+    ctx.moveTo(0, -2);
+    ctx.lineTo(11, -10 + flail * 5);
+    ctx.stroke();
+    ctx.fillStyle = "#e8c48a";
+    ctx.beginPath();
+    ctx.arc(0, -11, 6, 0, U.TAU);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  /** The net that drags the hero down until it is torn off. */
+  Render.tether = function (ctx, player) {
+    var t = player.tether;
+    if (!t) return;
+    ctx.save();
+    ctx.strokeStyle = "rgba(180,255,220,0.75)";
+    ctx.lineWidth = 2.4;
+    ctx.setLineDash([7, 6]);
+    ctx.beginPath();
+    ctx.moveTo(player.pos.x, player.pos.y);
+    ctx.lineTo(t.x, t.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    var r = C.PLAYER_R + 7;
+    ctx.strokeStyle = "rgba(180,255,220,0.9)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    for (var i = -2; i <= 2; i++) {
+      ctx.moveTo(player.pos.x - r, player.pos.y + i * 6);
+      ctx.lineTo(player.pos.x + r, player.pos.y + i * 6);
+      ctx.moveTo(player.pos.x + i * 6, player.pos.y - r);
+      ctx.lineTo(player.pos.x + i * 6, player.pos.y + r);
+    }
+    ctx.stroke();
+    ctx.restore();
   };
 
   /** Yesterday's best run, replayed as a translucent silhouette. */

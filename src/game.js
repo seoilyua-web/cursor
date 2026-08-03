@@ -15,6 +15,10 @@
     best: document.getElementById("hud-best"),
     speed: document.getElementById("hud-speed"),
     combo: document.getElementById("hud-combo"),
+    chain: document.getElementById("hud-chain"),
+    startTasks: document.getElementById("start-tasks"),
+    deadTasks: document.getElementById("dead-tasks"),
+    breakdown: document.getElementById("res-breakdown"),
     hint: document.getElementById("hud-hint"),
     tutor: document.getElementById("hud-tutor"),
     popups: document.getElementById("hud-popups"),
@@ -120,6 +124,7 @@
     reelOut: ["KeyS", "ArrowDown"],
     jump: ["Space"],
     dash: ["ShiftLeft", "ShiftRight"],
+    zip: ["KeyE"],
   };
 
   var BIND_NAMES = {
@@ -129,6 +134,7 @@
     reelOut: "Отпустить нить / вниз",
     jump: "Прыжок и толчок от стены",
     dash: "Рывок",
+    zip: "Подтянуться к якорю",
   };
 
   var binds = {};
@@ -162,7 +168,7 @@
     cam: { x: 0, y: -300, zoom: 1, shake: 0 },
     view: { w: 0, h: 0, dpr: 1 },
     aim: { sx: 0, sy: 0, x: 0, y: 0 },
-    input: { moveX: 0, reel: 0, jump: false },
+    input: { moveX: 0, reel: 0, jump: false, zip: false },
     particles: [],
     webShots: [],
     shotCd: 0,
@@ -174,6 +180,10 @@
     best: 0,
     combo: 0,
     comboTimer: 0,
+    chain: 0,
+    breakdown: null,
+    rescue: null,
+    challenges: [],
     lowTime: 0,
     lowAnnounced: false,
     grazeBox: null,
@@ -303,6 +313,20 @@
     game.score = 0;
     game.combo = 0;
     game.comboTimer = 0;
+    game.chain = 0;
+    game.rescue = null;
+    game.rescueCd = 10;
+    game.challenges = buildChallenges();
+    game.breakdown = {
+      distance: 0,
+      orbs: 0,
+      style: 0,
+      perfect: 0,
+      contracts: 0,
+      enemies: 0,
+      rescues: 0,
+      challenges: 0,
+    };
     game.lowTime = 0;
     game.lowAnnounced = false;
     game.grazeBox = null;
@@ -354,6 +378,31 @@
     el.resScore.textContent = score;
     el.resBest.textContent = game.best;
     el.best.textContent = game.best;
+    var LABELS = {
+      distance: "дистанция",
+      orbs: "энергосферы",
+      style: "стиль",
+      perfect: "точные отпускания",
+      contracts: "доставка",
+      enemies: "враги",
+      rescues: "спасённые",
+      challenges: "задачи",
+    };
+    el.breakdown.innerHTML = "";
+    for (var key in LABELS) {
+      var value = Math.round(game.breakdown[key] || 0);
+      if (!value) continue;
+      var row = document.createElement("div");
+      var name = document.createElement("span");
+      name.textContent = LABELS[key];
+      var val = document.createElement("b");
+      val.textContent = value;
+      row.appendChild(name);
+      row.appendChild(val);
+      el.breakdown.appendChild(row);
+    }
+    renderChallenges(el.deadTasks);
+
     el.resNew.classList.toggle("hidden", !isBest);
     el.overlay.classList.remove("hidden");
     el.deadCard.classList.remove("hidden");
@@ -393,6 +442,7 @@
   };
 
   game.onLand = function (impact) {
+    game.chain = 0;
     SW.audio.thud();
     var n = 6 + U.clamp((impact || 0) / (120 * C.PACE), 0, 10);
     burst(game.player.pos.x, game.player.pos.y + C.PLAYER_R, n, "#a9b6ff", 120);
@@ -438,7 +488,21 @@
     popup(game.player.pos.x, game.player.pos.y - 30, "СБИТ", true);
   };
 
+  game.onSnared = function () {
+    SW.audio.crash();
+    game.combo = 0;
+    game.comboTimer = 0;
+    game.chain = 0;
+    game.cam.shake = Math.max(game.cam.shake, 10);
+    popup(game.player.pos.x, game.player.pos.y - 34, "В СЕТИ", true);
+  };
+
+  game.onTetherBreak = function () {
+    burst(game.player.pos.x, game.player.pos.y, 9, "#dfe8ff", 200 * C.PACE);
+  };
+
   game.onScrape = function (x, y, impact) {
+    game.chain = 0;
     burst(x, y, 3, "#ffd08a", (90 + impact * 0.2) * C.PACE);
     game.cam.shake = Math.max(game.cam.shake, U.clamp(impact / (140 * C.PACE), 0, 7));
   };
@@ -516,7 +580,14 @@
   // ---------------------------------------------------------------------------
 
   function multiplier() {
-    return U.clamp(1 + game.combo * 0.25, 1, 8);
+    return U.clamp(1 + game.combo * 0.25 + game.chain * 0.15, 1, 8);
+  }
+
+  /** All score goes through here so the end screen can explain itself. */
+  function award(kind, points) {
+    game.score += points;
+    if (game.breakdown) game.breakdown[kind] += points;
+    return Math.round(points);
   }
 
   function bumpCombo(n) {
@@ -538,7 +609,8 @@
       if (dx * dx + dy * dy > reach * reach) continue;
       o.taken = true;
       bumpCombo(1);
-      game.score += 50 * multiplier();
+      award("orbs", 50 * multiplier());
+      progressChallenge("orbs", 1);
       ring(o.x, o.y, "rgba(120,240,255,0.9)");
       burst(o.x, o.y, 6, "#8ff0ff", 180);
       SW.audio.ping(Math.min(game.combo - 1, 14));
@@ -553,8 +625,7 @@
     var p = game.player;
     if (p.dead || p.onRoof || p.onWall) {
       if (game.lowTime > 0.35) {
-        var bonus = Math.round(140 * game.lowTime * multiplier());
-        game.score += bonus;
+        var bonus = award("style", 140 * game.lowTime * multiplier());
         popup(p.pos.x, p.pos.y - 40, "НИЗКО +" + bonus, true);
         bumpCombo(1);
       }
@@ -566,15 +637,14 @@
     var fast = p.speed() > 340 * C.PACE;
     if (p.altitude() < C.LOW_ALTITUDE && fast) {
       game.lowTime += dt;
-      game.score += 90 * dt * multiplier();
+      award("style", 90 * dt * multiplier());
       if (!game.lowAnnounced && game.lowTime > 0.3) {
         game.lowAnnounced = true;
         popup(p.pos.x, p.pos.y - 46, "НАД САМОЙ УЛИЦЕЙ", true);
       }
     } else if (game.lowTime > 0) {
       if (game.lowTime > 0.35) {
-        var b2 = Math.round(140 * game.lowTime * multiplier());
-        game.score += b2;
+        var b2 = award("style", 140 * game.lowTime * multiplier());
         popup(p.pos.x, p.pos.y - 40, "НИЗКО +" + b2, true);
         bumpCombo(1);
       }
@@ -592,11 +662,163 @@
     if (near.box && near.box !== game.grazeBox && near.dist > C.PLAYER_R + 1) {
       game.grazeBox = near.box;
       game.grazeCd = 0.5;
-      var pts = Math.round(70 * multiplier());
-      game.score += pts;
+      var pts = award("style", 70 * multiplier());
       bumpCombo(1);
       popup(p.pos.x, p.pos.y - 30, "ВПРИТИРКУ +" + pts);
       SW.audio.ping(Math.min(game.combo, 12));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Daily challenges
+  // ---------------------------------------------------------------------------
+
+  var CHALLENGE_KEY = "swing-daily-tasks-v1";
+
+  var CHALLENGE_POOL = [
+    { id: "enemies", text: "Сбей %n врагов паутиной", min: 4, max: 7, bonus: 900 },
+    { id: "orbs", text: "Собери %n энергосфер", min: 18, max: 34, bonus: 700 },
+    { id: "contracts", text: "Доставь %n груза", min: 2, max: 3, bonus: 1000 },
+    { id: "rescues", text: "Спаси %n человек", min: 1, max: 3, bonus: 1100 },
+    { id: "perfect", text: "Отпусти нить точно %n раз", min: 5, max: 10, bonus: 800 },
+    { id: "chain", text: "Слепи серию из %n качаний без касания", min: 5, max: 9, bonus: 900 },
+  ];
+
+  function buildChallenges() {
+    var rng = new U.Rng(dailySeed() ^ 0x51ed270b);
+    var pool = CHALLENGE_POOL.slice();
+    var out = [];
+    for (var i = 0; i < 3 && pool.length; i++) {
+      var def = pool.splice(rng.int(0, pool.length - 1), 1)[0];
+      var target = rng.int(def.min, def.max);
+      out.push({
+        id: def.id,
+        text: def.text.replace("%n", target),
+        target: target,
+        bonus: def.bonus,
+        progress: 0,
+        done: false,
+      });
+    }
+    var saved = load(CHALLENGE_KEY + "-" + dailySeed(), "");
+    for (var k = 0; k < out.length; k++) {
+      if (saved.charAt(k) === "1") out[k].claimed = true;
+    }
+    return out;
+  }
+
+  function saveChallenges() {
+    var mask = "";
+    for (var i = 0; i < game.challenges.length; i++) {
+      mask += game.challenges[i].done || game.challenges[i].claimed ? "1" : "0";
+    }
+    store(CHALLENGE_KEY + "-" + dailySeed(), mask);
+  }
+
+  function progressChallenge(id, amount) {
+    for (var i = 0; i < game.challenges.length; i++) {
+      var c = game.challenges[i];
+      if (c.id !== id || c.done) continue;
+      c.progress = Math.max(c.progress, 0) + amount;
+      if (c.progress >= c.target) {
+        c.done = true;
+        var pts = award("challenges", c.bonus * multiplier());
+        popup(game.player.pos.x, game.player.pos.y - 60, "ЗАДАЧА +" + pts, true);
+        SW.audio.ping(14);
+        saveChallenges();
+      }
+    }
+  }
+
+  function setChallenge(id, value) {
+    for (var i = 0; i < game.challenges.length; i++) {
+      var c = game.challenges[i];
+      if (c.id !== id || c.done) continue;
+      if (value > c.progress) {
+        c.progress = value;
+        if (c.progress >= c.target) progressChallenge(id, 0);
+      }
+    }
+  }
+
+  function renderChallenges(node) {
+    node.innerHTML = "";
+    for (var i = 0; i < game.challenges.length; i++) {
+      var c = game.challenges[i];
+      var row = document.createElement("div");
+      row.className = "task" + (c.done || c.claimed ? " done" : "");
+      var name = document.createElement("span");
+      name.textContent = c.text;
+      var val = document.createElement("b");
+      val.textContent =
+        c.done || c.claimed ? "готово" : Math.min(c.progress, c.target) + "/" + c.target;
+      row.appendChild(name);
+      row.appendChild(val);
+      node.appendChild(row);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rescue: someone falls, and only speed decides whether they land
+  // ---------------------------------------------------------------------------
+
+  function spawnRescue() {
+    var spot = pickRoof(game.player.pos.x, 900, 2200);
+    if (!spot || spot.y > -420) return;
+    game.rescue = {
+      x: spot.x,
+      y: spot.y - 20,
+      vy: 0,
+      state: "wait",
+      phase: 0,
+    };
+  }
+
+  function updateRescue(dt) {
+    var r = game.rescue;
+    var p = game.player;
+    if (!r) {
+      game.rescueCd -= dt;
+      if (game.rescueCd <= 0) {
+        game.rescueCd = 14 + Math.random() * 12;
+        spawnRescue();
+      }
+      return;
+    }
+
+    r.phase += dt;
+    if (r.state === "wait") {
+      if (Math.abs(p.pos.x - r.x) < 1000) {
+        r.state = "fall";
+        popup(r.x, r.y - 40, "ЧЕЛОВЕК ПАДАЕТ", true);
+        SW.audio.ping(2);
+      } else if (p.pos.x > r.x + 400) {
+        game.rescue = null;
+      }
+      return;
+    }
+
+    if (r.state === "fall") {
+      r.vy += C.GRAVITY * C.RESCUE_FALL * dt;
+      r.y += r.vy * dt;
+      var dx = p.pos.x - r.x;
+      var dy = p.pos.y - r.y;
+      if (dx * dx + dy * dy < 56 * 56) {
+        var pts = award("rescues", 650 * multiplier());
+        bumpCombo(2);
+        progressChallenge("rescues", 1);
+        popup(r.x, r.y - 30, "СПАСЁН +" + pts, true);
+        ring(r.x, r.y, "rgba(255,240,180,0.95)");
+        burst(r.x, r.y, 14, "#ffe8a8", 220 * C.PACE);
+        SW.audio.ping(13);
+        game.rescue = null;
+        return;
+      }
+      if (r.y > C.GROUND_Y - 14) {
+        popup(r.x, C.GROUND_Y - 70, "НЕ УСПЕЛ");
+        burst(r.x, C.GROUND_Y - 8, 10, "#8590b8", 140);
+        game.rescue = null;
+      }
     }
   }
 
@@ -643,12 +865,18 @@
         var downed = game.world.webEnemy(enemy);
         burst(s.x, s.y, downed ? 12 : 6, "#ffffff", 170 * C.PACE);
         if (downed) {
-          var pts = Math.round(
-            (enemy.type === "heli" ? 220 : enemy.type === "turret" ? 160 : 120) *
-              multiplier()
+          var pts = award(
+            "enemies",
+            (enemy.type === "heli"
+              ? 220
+              : enemy.type === "turret"
+              ? 160
+              : enemy.type === "netter"
+              ? 180
+              : 120) * multiplier()
           );
-          game.score += pts;
           bumpCombo(1);
+          progressChallenge("enemies", 1);
           ring(s.x, s.y, "rgba(255,255,255,0.9)");
           popup(enemy.x, enemy.y - 26, "СБИТ +" + pts);
           SW.audio.ping(Math.min(game.combo, 12));
@@ -748,9 +976,9 @@
       var ddx = p.pos.x - c.drop.x;
       var ddy = p.pos.y - c.drop.y;
       if (ddx * ddx + ddy * ddy < 60 * 60) {
-        var bonus = Math.round((300 + c.timer * 40) * multiplier());
-        game.score += bonus;
+        var bonus = award("contracts", (300 + c.timer * 40) * multiplier());
         bumpCombo(2);
+        progressChallenge("contracts", 1);
         popup(c.drop.x, c.drop.y - 40, "ДОСТАВЛЕНО +" + bonus, true);
         ring(c.drop.x, c.drop.y, "rgba(120,240,255,0.95)");
         burst(c.drop.x, c.drop.y, 14, "#8ff0ff", 220 * C.PACE);
@@ -790,16 +1018,23 @@
       var hz = game.world.hazardAt(p.pos.x, p.pos.y, C.PLAYER_R);
       if (hz) p.hit(hz, game);
       var incoming = game.world.shotAt(p.pos.x, p.pos.y, C.PLAYER_R);
-      if (incoming) p.hit(incoming, game);
+      if (incoming) {
+        if (incoming.net && incoming.src) {
+          p.snare({ x: incoming.src.x, y: incoming.src.y, obj: incoming.src }, game);
+        } else {
+          p.hit(incoming, game);
+        }
+      }
 
       collectOrbs();
       styleScore(dt);
       if (settings.contracts) updateContract(dt);
+      updateRescue(dt);
       updateGhost(dt);
 
       var d = (p.pos.x - game.world.startX) / C.PIXELS_PER_METER;
       if (d > game.distance) {
-        game.score += d - game.distance;
+        award("distance", d - game.distance);
         game.distance = d;
       }
       if (game.comboTimer > 0) {
@@ -843,6 +1078,13 @@
       el.combo.classList.remove("hidden");
     } else {
       el.combo.classList.add("hidden");
+    }
+
+    if (game.chain > 1) {
+      el.chain.textContent = "серия " + game.chain;
+      el.chain.classList.remove("hidden");
+    } else {
+      el.chain.classList.add("hidden");
     }
 
     var d = game.world.districtAt(p.pos.x);
@@ -970,6 +1212,10 @@
       SW.Render.aim(ctx, p, game.world, game.aim, game.aimHit);
     }
     SW.Render.contract(ctx, game.contract, game.time);
+    SW.Render.rescue(ctx, game.rescue, game.time);
+    if (game.state !== "menu" && game.state !== "settings") {
+      SW.Render.tether(ctx, p);
+    }
     if (game.ghost && game.state === "playing") {
       SW.Render.ghost(
         ctx,
@@ -989,6 +1235,11 @@
     if (settings.weather) {
       SW.Render.weather(ctx, cam, w, h, game.world.weather, game.time);
     }
+    if (game.rescue && game.rescue.state === "fall" && game.state === "playing") {
+      worldToScreen(game.rescue.x, game.rescue.y, _pt);
+      SW.Render.marker(ctx, w, h, _pt.x, _pt.y, "#ffe8a8", "спаси!");
+    }
+
     var target =
       game.contract.state === "carry"
         ? game.contract.drop
@@ -1113,11 +1364,27 @@
   function refreshMove() {
     game.input.moveX = (held("right") ? 1 : 0) - (held("left") ? 1 : 0);
     game.input.reel = (held("reelIn") ? 1 : 0) - (held("reelOut") ? 1 : 0);
+    game.input.zip = held("zip") || touchActs.zip;
   }
 
   function releaseWeb() {
-    if (game.player.web === "attached") tutorSwingDone();
-    game.player.release();
+    var p = game.player;
+    if (p.web !== "attached") {
+      p.release();
+      return;
+    }
+    tutorSwingDone();
+    p.release();
+    game.chain++;
+    setChallenge("chain", game.chain);
+    if (p.releasePerfect) {
+      var pts = award("perfect", 90 * multiplier());
+      bumpCombo(1);
+      progressChallenge("perfect", 1);
+      popup(p.pos.x, p.pos.y - 34, "ТОЧНО +" + pts);
+      ring(p.pos.x, p.pos.y, "rgba(255,255,255,0.85)");
+      SW.audio.ping(Math.min(game.combo + 4, 14));
+    }
   }
 
   function fireOrKick() {
@@ -1308,11 +1575,18 @@
   // ---------------------------------------------------------------------------
 
   var touchLayer = document.getElementById("touch");
-  var touchActs = { left: false, right: false, reelIn: false, reelOut: false };
+  var touchActs = {
+    left: false,
+    right: false,
+    reelIn: false,
+    reelOut: false,
+    zip: false,
+  };
 
   function applyTouchMove() {
     game.input.moveX = (touchActs.right ? 1 : 0) - (touchActs.left ? 1 : 0);
     game.input.reel = (touchActs.reelIn ? 1 : 0) - (touchActs.reelOut ? 1 : 0);
+    game.input.zip = touchActs.zip || held("zip");
   }
 
   function showTouchControls() {
@@ -1416,11 +1690,17 @@
   // Boot
   // ---------------------------------------------------------------------------
 
+  function refreshMenuTasks() {
+    game.challenges = buildChallenges();
+    renderChallenges(el.startTasks);
+  }
+
   resize();
   rebuildBinds();
   renderBinds();
   applySettings();
   newRun();
+  refreshMenuTasks();
   game.cam.y = -420;
   requestAnimationFrame(frame);
 

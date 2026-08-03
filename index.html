@@ -38,6 +38,7 @@
         </div>
         <div id="hud-perf" class="perf hidden"></div>
         <div id="hud-combo" class="combo hidden">x1.0</div>
+        <div id="hud-chain" class="chain hidden">серия 0</div>
         <div id="hud-popups"></div>
         <div id="hud-bottom">
           <div id="hud-district" class="district">Деловой центр</div>
@@ -92,8 +93,13 @@
             <li>
               <b>Shift</b><span>рывок — спасает из безнадёжного падения</span>
             </li>
+            <li><b>E</b><span>подтянуться к якорю по нити</span></li>
             <li><b>R</b><span>заново</span><b>M</b><span>звук</span></li>
           </ul>
+          <div class="tasks">
+            <div class="tasks-title">Задачи дня</div>
+            <div id="start-tasks"></div>
+          </div>
           <button id="btn-play" class="btn">Играть</button>
           <button id="btn-settings" class="btn ghost">Настройки</button>
           <label class="daily">
@@ -122,6 +128,11 @@
             </div>
           </div>
           <div id="res-new" class="new-best hidden">новый рекорд</div>
+          <div id="res-breakdown" class="breakdown"></div>
+          <div class="tasks">
+            <div class="tasks-title">Задачи дня</div>
+            <div id="dead-tasks"></div>
+          </div>
           <button id="btn-retry" class="btn">Ещё раз</button>
           <p class="fine">или нажми R</p>
         </div>
