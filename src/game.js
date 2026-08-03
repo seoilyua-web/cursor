@@ -1229,11 +1229,14 @@
         game.distance = d;
       }
 
-      // The shift is over once both the plan and the route are done.
+      // The shift ends on the roof finish pad once the delivery plan is done.
       if (!settings.endless && !game.won) {
         var def = levelDef();
-        if (game.deliveries >= def.quota && game.distance >= def.length) {
-          finishShift();
+        if (game.deliveries >= def.quota && game.world.finish) {
+          var f = game.world.finish;
+          var fdx = p.pos.x - f.x;
+          var fdy = p.pos.y - (f.y - C.PLAYER_R);
+          if (fdx * fdx + fdy * fdy < 58 * 58) finishShift();
         }
       }
       if (game.comboTimer > 0) {
@@ -1244,6 +1247,13 @@
 
     game.world.update(dt, p.pos.x, p.pos.y);
     game.world.ensureUpTo(game.cam.x + 3600);
+    if (!settings.endless && !game.world.finish) {
+      var routeDef = levelDef();
+      game.world.ensureUpTo(
+        game.world.startX + routeDef.length * C.PIXELS_PER_METER + 1600
+      );
+      game.world._ensureFinish();
+    }
     if (game.world.wavePulse && game.state === "playing" && !p.dead) {
       popup(p.pos.x, p.pos.y - 48, "ВОЛНА ×" + game.world.wavePulse, true);
       game.world.wavePulse = 0;
@@ -1286,11 +1296,11 @@
 
     if (!settings.endless) {
       var def = levelDef();
-      var left = Math.max(0, Math.ceil(def.length - game.distance));
+      var left = Math.ceil(game.world.finishMetersLeft(p.pos.x));
       var planDone = game.deliveries >= def.quota;
       el.shiftPlan.textContent = game.deliveries + "/" + def.quota;
       el.shiftLeft.textContent = left + " м";
-      el.shift.classList.toggle("done", planDone && left === 0);
+      el.shift.classList.toggle("done", planDone && left <= 8);
     }
 
     var ammo = p.webAmmo;
@@ -1438,11 +1448,8 @@
     }
     SW.Render.contract(sctx, game.contract, game.time);
     SW.Render.rescue(sctx, game.rescue, game.time);
-    if (!settings.endless && game.state === "playing") {
-      var finishX = game.world.startX + levelDef().length * C.PIXELS_PER_METER;
-      if (finishX > game.world.startX + 200) {
-        SW.Render.finishLine(sctx, finishX, game.time, accent);
-      }
+    if (!settings.endless && game.world.finish && game.state === "playing") {
+      SW.Render.finishPad(sctx, game.world.finish, game.time, accent);
     }
     if (game.state !== "menu" && game.state !== "settings") {
       SW.Render.tether(sctx, p);
@@ -1493,6 +1500,17 @@
         worldToScreen(nearest.x, nearest.y, _pt);
         SW.Render.marker(ctx, w, h, _pt.x, _pt.y, "#ffc46b", "пицца");
       }
+    }
+
+    if (
+      !settings.endless &&
+      game.world.finish &&
+      game.deliveries >= levelDef().quota &&
+      game.state === "playing" &&
+      !p.dead
+    ) {
+      worldToScreen(game.world.finish.x, game.world.finish.y, _pt);
+      SW.Render.marker(ctx, w, h, _pt.x, _pt.y, accent, "финиш");
     }
 
     if (game.rescue && game.rescue.state === "fall" && game.state === "playing") {

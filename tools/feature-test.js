@@ -747,6 +747,8 @@ function check(name, ok, detail) {
   // --- the shift can be completed --------------------------------------------
   const shift = await page.evaluate(async () => {
     const g = window.SWGame;
+    const p = g.player;
+    const C = window.SW.CONST;
     const def = window.SW.World.LEVELS[g.settings.level];
     g.settings.endless = false;
     g.won = false;
@@ -754,8 +756,15 @@ function check(name, ok, detail) {
     g.runTime = 1;
     g.deliveries = def.quota;
     g.distance = def.length + 5;
-    g.player.dead = false;
+    p.dead = false;
     g.state = "playing";
+    g.world.ensureUpTo(g.world.startX + def.length * C.PIXELS_PER_METER + 2000);
+    g.world._ensureFinish();
+    if (g.world.finish) {
+      p.pos.x = g.world.finish.x;
+      p.pos.y = g.world.finish.y - C.PLAYER_R;
+      p.onRoof = true;
+    }
     await new Promise((r) => setTimeout(r, 1400));
     const stars = document.querySelectorAll("#res-stars .on").length;
     return { won: g.won, state: g.state, stars, title: document.getElementById("dead-title").textContent };

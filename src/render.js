@@ -7,6 +7,7 @@
 
   var Render = {};
   Render.quality = 1; // 1 = full, 0 = cheap effects for weak devices
+  var NEON_FONT = '"Noto Sans JP", "Hiragino Sans", "Yu Gothic", Inter, system-ui, sans-serif';
   Render.calm = false; // no shake, no speed lines
   Render.shapes = false; // tell markers apart by shape, not only colour
   Render.wet = 0; // how much the street reflects, driven by the rain
@@ -334,11 +335,22 @@
     ctx.lineWidth = 3;
     ctx.strokeRect(p.x + 4, p.y + 4, p.w - 8, p.h - 8);
 
-    ctx.fillStyle = p.hue;
-    var rows = Math.max(1, Math.floor((p.h - 20) / 12));
-    for (var r = 0; r < rows; r++) {
-      var wid = (p.w - 26) * (0.45 + U.hash01(p.seed + r * 3.3) * 0.5);
-      ctx.fillRect(p.x + 13, p.y + 13 + r * 12, wid, 4);
+    if (p.word) {
+      ctx.font = "700 " + (p.size || 16).toFixed(0) + "px " + NEON_FONT;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = p.hue;
+      ctx.fillText(p.word, p.x + p.w / 2, p.y + p.h / 2 + 1);
+      ctx.fillStyle = "#ffffff";
+      ctx.globalAlpha = flicker * 0.92;
+      ctx.fillText(p.word, p.x + p.w / 2, p.y + p.h / 2 + 1);
+    } else {
+      ctx.fillStyle = p.hue;
+      var rows = Math.max(1, Math.floor((p.h - 20) / 12));
+      for (var r = 0; r < rows; r++) {
+        var wid = (p.w - 26) * (0.45 + U.hash01(p.seed + r * 3.3) * 0.5);
+        ctx.fillRect(p.x + 13, p.y + 13 + r * 12, wid, 4);
+      }
     }
     ctx.globalAlpha = 1;
 
@@ -585,7 +597,7 @@
     if (p.word) {
       if (!p.measured) {
         ctx.save();
-        ctx.font = "700 " + p.size.toFixed(0) + "px Inter, system-ui, sans-serif";
+        ctx.font = "700 " + p.size.toFixed(0) + "px " + NEON_FONT;
         if (p.vertical) {
           var widest = 0;
           for (var q = 0; q < p.word.length; q++) {
@@ -620,7 +632,7 @@
       }
       ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
 
-      ctx.font = "700 " + p.size.toFixed(0) + "px Inter, system-ui, sans-serif";
+      ctx.font = "700 " + p.size.toFixed(0) + "px " + NEON_FONT;
       ctx.textBaseline = "middle";
       ctx.textAlign = "center";
       ctx.fillStyle = p.hue;
@@ -1458,47 +1470,53 @@
     ctx.restore();
   };
 
-  /** Neon finish gate — the shift ends once plan and distance are both met. */
-  Render.finishLine = function (ctx, x, time, accent) {
-    var pulse = 0.5 + Math.sin(time * 4.2) * 0.5;
+  /** Glowing landing pad on a roof — the shift ends here. */
+  Render.finishPad = function (ctx, finish, time, accent) {
+    if (!finish) return;
+    var pulse = 0.5 + Math.sin(time * 3.4) * 0.5;
     var col = accent || Render.accent;
+    var x = finish.x;
+    var y = finish.y;
+
+    var beam = ctx.createLinearGradient(x, y - 280, x, y);
+    beam.addColorStop(0, "rgba(0,0,0,0)");
+    beam.addColorStop(1, "rgba(143,240,255," + (0.14 + pulse * 0.12).toFixed(3) + ")");
+    ctx.fillStyle = beam;
+    ctx.fillRect(x - 46, y - 280, 92, 280);
+
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-
-    var beam = ctx.createLinearGradient(x - 48, C.GROUND_Y - 900, x + 48, C.GROUND_Y);
-    beam.addColorStop(0, "rgba(0,0,0,0)");
-    beam.addColorStop(0.55, col);
-    beam.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.globalAlpha = 0.14 + pulse * 0.1;
-    ctx.fillStyle = beam;
-    ctx.fillRect(x - 48, C.GROUND_Y - 900, 96, 900);
+    var g = ctx.createRadialGradient(x, y - 4, 4, x, y - 4, 72);
+    g.addColorStop(0, col);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalAlpha = 0.22 + pulse * 0.14;
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y - 4, 72, 0, U.TAU);
+    ctx.fill();
+    ctx.restore();
 
     ctx.strokeStyle = col;
     ctx.lineWidth = 3;
-    ctx.globalAlpha = 0.75 + pulse * 0.25;
+    ctx.globalAlpha = 0.85 + pulse * 0.15;
     if (Render.quality > 0) {
       ctx.shadowColor = col;
-      ctx.shadowBlur = 18;
+      ctx.shadowBlur = 16;
     }
     ctx.beginPath();
-    ctx.moveTo(x, C.GROUND_Y - 820);
-    ctx.lineTo(x, C.GROUND_Y - 8);
+    ctx.ellipse(x, y - 4, 50, 14, 0, 0, U.TAU);
     ctx.stroke();
     ctx.shadowBlur = 0;
-
-    ctx.globalAlpha = 0.55 + pulse * 0.35;
+    ctx.globalAlpha = 0.35 + pulse * 0.35;
     ctx.beginPath();
-    ctx.ellipse(x, C.GROUND_Y - 6, 52, 14, 0, 0, U.TAU);
+    ctx.ellipse(x, y - 4, 50 - pulse * 22, 14 - pulse * 6, 0, 0, U.TAU);
     ctx.stroke();
-    ctx.restore();
 
-    ctx.save();
-    ctx.font = "800 13px Inter, system-ui, sans-serif";
+    ctx.font = "800 14px " + NEON_FONT;
     ctx.textAlign = "center";
     ctx.fillStyle = col;
-    ctx.globalAlpha = 0.7 + pulse * 0.3;
-    ctx.fillText("ФИНИШ", x, C.GROUND_Y - 830);
-    ctx.restore();
+    ctx.globalAlpha = 0.75 + pulse * 0.25;
+    ctx.fillText("終点", x, y - 34);
   };
 
   /** Cyan wash while the rescue slow-mo is active. */

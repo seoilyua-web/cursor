@@ -45,7 +45,7 @@
       far: "rgba(24,26,58,0.85)",
       mid: "rgba(15,17,42,0.92)",
       neon: ["#ff3b6b", "#43e5ff", "#ffb03a"],
-      words: ["ОФИС", "БАНК", "24 ЧАСА", "КОФЕ", "БИРЖА"],
+      words: ["オフィス", "銀行", "二十四", "珈琲", "取引"],
     },
     {
       id: "industrial",
@@ -73,7 +73,7 @@
       far: "rgba(18,34,40,0.85)",
       mid: "rgba(9,20,26,0.92)",
       neon: ["#ffb03a", "#7dffcb", "#ff6a3d"],
-      words: ["ЦЕХ 4", "СКЛАД", "ГРУЗ", "ТЭЦ", "ВЪЕЗД"],
+      words: ["工場", "倉庫", "貨物", "発電", "入口"],
     },
     {
       id: "residential",
@@ -101,7 +101,7 @@
       far: "rgba(26,28,64,0.85)",
       mid: "rgba(14,16,40,0.92)",
       neon: ["#8b5cff", "#43e5ff", "#ff8ab0"],
-      words: ["ПРОДУКТЫ", "АПТЕКА", "ПИЦЦА", "САЛОН", "24"],
+      words: ["食料品", "薬局", "ピザ", "美容室", "二十四"],
     },
     {
       id: "oldtown",
@@ -129,7 +129,7 @@
       far: "rgba(42,28,46,0.85)",
       mid: "rgba(24,15,28,0.92)",
       neon: ["#ff9f4a", "#ffd76a", "#ff5a7a"],
-      words: ["ТРАКТИРЪ", "ЛАВКА", "ЧАЙ", "ТЕАТРЪ", "БАНЯ"],
+      words: ["酒場", "店", "茶", "劇場", "風呂"],
     },
     {
       id: "skyline",
@@ -157,7 +157,7 @@
       far: "rgba(18,24,52,0.85)",
       mid: "rgba(10,14,34,0.92)",
       neon: ["#43e5ff", "#8b5cff", "#eaf6ff"],
-      words: ["SKY", "ОБЛАКО", "ЛИФТ", "ВЫШЕ", "ЭФИР"],
+      words: ["空", "雲", "昇降", "高層", "空中"],
     },
     {
       id: "site",
@@ -186,7 +186,7 @@
       far: "rgba(34,28,26,0.85)",
       mid: "rgba(18,15,16,0.92)",
       neon: ["#ffc46b", "#ff6a3d", "#7dffcb"],
-      words: ["СТРОЙ", "ОПАСНО", "КАСКА", "БЕТОН", "СМЕНА"],
+      words: ["建設", "危険", "安全", "現場", "勤務"],
     },
   ];
 
@@ -269,6 +269,7 @@
     this.nextBlimpX = 0;
     this.nextHazardX = 0;
     this.waveLeft = 0;
+    this.finish = null;
     this.weather = { wind: 0, rain: 0, fog: 0 };
     this.target = { wind: 0, rain: 0, fog: 0 };
     this.districtIndex = 0;
@@ -295,12 +296,65 @@
     this.nextHazardX = 2600;
     this.waveLeft = 0;
     this.wavePulse = 0;
+    this.finish = null;
     this.weather = { wind: 0, rain: 0, fog: 0 };
     this.target = { wind: 0, rain: 0, fog: 0 };
     this.districtIndex = 0;
+    var level = LEVELS[this.levelIndex];
     var pad = this._push(300, 620, true);
     this.nextX = pad.x + pad.w + 240;
-    this.ensureUpTo(3000);
+    var finishReach = this.startX + level.length * C.PIXELS_PER_METER + 1400;
+    this.ensureUpTo(finishReach);
+    if (!this.finish) this.ensureUpTo(finishReach + 2400);
+    this._ensureFinish();
+  };
+
+  /** Finish pad on a roof at the end of the shift route. */
+  World.prototype._ensureFinish = function () {
+    if (this.finish) return;
+    var level = LEVELS[this.levelIndex];
+    var tx = this.startX + level.length * C.PIXELS_PER_METER;
+    var best = null;
+    var bestD = Infinity;
+    for (var i = 0; i < this.buildings.length; i++) {
+      var b = this.buildings[i];
+      if (b.x + b.w < this.startX + 300) continue;
+      var cx = U.clamp(tx, b.x + 20, b.x + b.w - 20);
+      var d = Math.abs(cx - tx);
+      if (tx >= b.x - 80 && tx <= b.x + b.w + 80 && d < bestD) {
+        bestD = d;
+        best = b;
+      }
+    }
+    if (!best) {
+      for (var j = 0; j < this.buildings.length; j++) {
+        var bb = this.buildings[j];
+        if (bb.x + bb.w < this.startX + 300) continue;
+        var mid = bb.x + bb.w * 0.5;
+        var dd = Math.abs(mid - tx);
+        if (dd < bestD) {
+          bestD = dd;
+          best = bb;
+        }
+      }
+    }
+    if (!best) return;
+    var spot = this.freeRoofSpot(best, 32);
+    if (!spot) {
+      spot = {
+        x: U.clamp(tx, best.x + 40, best.x + best.w - 40),
+        y: best.top,
+      };
+    }
+    this.finish = { x: spot.x, y: spot.y };
+  };
+
+  World.prototype.finishMetersLeft = function (fromX) {
+    if (!this.finish) {
+      var level = LEVELS[this.levelIndex];
+      return Math.max(0, level.length - (fromX - this.startX) / C.PIXELS_PER_METER);
+    }
+    return Math.max(0, (this.finish.x - fromX) / C.PIXELS_PER_METER);
   };
 
   // ---------------------------------------------------------------------------
@@ -593,7 +647,15 @@
   // ---------------------------------------------------------------------------
 
   World.prototype._box = function (x, y, w, h, hard, prop) {
-    var box = { x: x, y: y, w: w, h: h, hard: !!hard, prop: prop || null };
+    var box = {
+      x: x,
+      y: y,
+      w: w,
+      h: h,
+      hard: !!hard,
+      prop: prop || null,
+      roofAnchor: !!(prop && prop.roofAnchor),
+    };
     this.boxes.push(box);
     return box;
   };
@@ -642,7 +704,10 @@
     this.buildings.push(b);
     this._box(b.x, b.top, b.w, h, true);
     if (b.antennaH > 0) {
-      this._box(b.ax - 7, b.top - b.antennaH, 14, b.antennaH, false);
+      this._box(b.ax - 7, b.top - b.antennaH, 14, b.antennaH, false, {
+        type: "mast",
+        roofAnchor: true,
+      });
     }
     if (isStart) this.startX = b.x + b.w * 0.5;
     return b;
@@ -758,6 +823,7 @@
 
   World.prototype._sign = function (b) {
     var rng = this.rng;
+    var level = LEVELS[this.levelIndex];
     var w = rng.range(70, 150);
     var h = rng.range(34, 62);
     var legs = rng.range(26, 70);
@@ -765,12 +831,15 @@
     var y = b.top - legs - h;
     var sign = {
       type: "sign",
+      roofAnchor: true,
       x: x,
       y: y,
       w: w,
       h: h,
       legs: legs,
       hue: rng.pick(SIGN_HUES),
+      word: rng.pick(level.words),
+      size: rng.range(15, 21),
       seed: rng.int(0, 9999),
     };
     this.props.push(sign);
@@ -804,7 +873,7 @@
     var y = b.top - h;
     // Never raise one inside a crane's working area.
     if (this._blockersAbove(x - 30, x + w + 30, b.top - 30).length) return null;
-    var prop = { type: "chimney", x: x, y: y, w: w, h: h, seed: rng.int(0, 999) };
+    var prop = { type: "chimney", roofAnchor: true, x: x, y: y, w: w, h: h, seed: rng.int(0, 999) };
     this.props.push(prop);
     this._box(x, y, w, h, false, prop);
     return prop;
@@ -815,7 +884,7 @@
     var rng = this.rng;
     var h = rng.range(70, 190);
     var x = b.x + b.w * rng.range(0.3, 0.7);
-    var prop = { type: "spire", x: x, y: b.top - h, h: h, base: rng.range(14, 26) };
+    var prop = { type: "spire", roofAnchor: true, x: x, y: b.top - h, h: h, base: rng.range(14, 26) };
     this.props.push(prop);
     this._box(x - 5, b.top - h, 10, h, false, prop);
     return prop;
@@ -1318,6 +1387,14 @@
     return null;
   };
 
+  /** Player walks through roof fixtures; webs still hit their soft boxes. */
+  World.prototype.collidePlayer = function (x, y, r) {
+    var hit = this.collide(x, y, r);
+    if (!hit) return null;
+    if (hit.box.roofAnchor && Math.abs(hit.nx) > 0.45 && hit.ny > -0.65) return null;
+    return hit;
+  };
+
   /** Distance to the closest hard surface, capped at `max`. */
   World.prototype.clearance = function (x, y, max) {
     var list = this.near(x - max, x + max, _scratch);
@@ -1365,7 +1442,8 @@
       var box = list[i];
       if (!box.prop) continue;
       var kind = box.prop.type;
-      if (kind !== "chimney" && kind !== "spire" && kind !== "sign") continue;
+      if (kind !== "chimney" && kind !== "spire" && kind !== "sign" && kind !== "mast")
+        continue;
       if (x + r < box.x || x - r > box.x + box.w) continue;
       if (roofY >= box.y + box.h - 4) return true;
     }

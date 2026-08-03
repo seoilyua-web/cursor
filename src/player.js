@@ -698,7 +698,7 @@
       return;
     }
 
-    var hit = world.collide(this.pos.x, this.pos.y, C.PLAYER_R);
+    var hit = world.collidePlayer(this.pos.x, this.pos.y, C.PLAYER_R);
     if (hit) {
       this.pos.x += hit.nx * hit.depth;
       this.pos.y += hit.ny * hit.depth;
