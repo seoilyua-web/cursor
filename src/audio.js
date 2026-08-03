@@ -196,6 +196,26 @@
     }
   };
 
+  /** Low thump when the street is close and the dash is still available. */
+  Audio.prototype.slowmo = function () {
+    if (!this.ctx || this.muted) return;
+    var t = this.ctx.currentTime;
+    var osc = this.ctx.createOscillator();
+    var gain = this.ctx.createGain();
+    var filter = this.ctx.createBiquadFilter();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(92, t);
+    osc.frequency.exponentialRampToValueAtTime(48, t + 0.38);
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(420, t);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.28, t + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+    osc.connect(filter).connect(gain).connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.45);
+  };
+
   Audio.prototype.thud = function () {
     if (!this.ctx || this.muted) return;
     var t = this.ctx.currentTime;

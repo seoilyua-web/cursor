@@ -294,6 +294,7 @@
     this.nextBlimpX = 1800;
     this.nextHazardX = 2600;
     this.waveLeft = 0;
+    this.wavePulse = 0;
     this.weather = { wind: 0, rain: 0, fog: 0 };
     this.target = { wind: 0, rain: 0, fog: 0 };
     this.districtIndex = 0;
@@ -1129,6 +1130,7 @@
         this.waveLeft--;
       } else if (this.hazardsOn && b.x > this.nextHazardX) {
         this.waveLeft = rng.int(2, 4);
+        this.wavePulse = this.waveLeft;
         this.nextHazardX = b.x + rng.range(3400, 5400);
       }
       if (this.hazardsOn && h > 300 && rng.chance(0.12)) this._turret(b);

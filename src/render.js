@@ -1458,6 +1458,63 @@
     ctx.restore();
   };
 
+  /** Neon finish gate — the shift ends once plan and distance are both met. */
+  Render.finishLine = function (ctx, x, time, accent) {
+    var pulse = 0.5 + Math.sin(time * 4.2) * 0.5;
+    var col = accent || Render.accent;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+
+    var beam = ctx.createLinearGradient(x - 48, C.GROUND_Y - 900, x + 48, C.GROUND_Y);
+    beam.addColorStop(0, "rgba(0,0,0,0)");
+    beam.addColorStop(0.55, col);
+    beam.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalAlpha = 0.14 + pulse * 0.1;
+    ctx.fillStyle = beam;
+    ctx.fillRect(x - 48, C.GROUND_Y - 900, 96, 900);
+
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.75 + pulse * 0.25;
+    if (Render.quality > 0) {
+      ctx.shadowColor = col;
+      ctx.shadowBlur = 18;
+    }
+    ctx.beginPath();
+    ctx.moveTo(x, C.GROUND_Y - 820);
+    ctx.lineTo(x, C.GROUND_Y - 8);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.globalAlpha = 0.55 + pulse * 0.35;
+    ctx.beginPath();
+    ctx.ellipse(x, C.GROUND_Y - 6, 52, 14, 0, 0, U.TAU);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.font = "800 13px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 0.7 + pulse * 0.3;
+    ctx.fillText("ФИНИШ", x, C.GROUND_Y - 830);
+    ctx.restore();
+  };
+
+  /** Cyan wash while the rescue slow-mo is active. */
+  Render.slowmo = function (ctx, w, h, t) {
+    if (t <= 0.02) return;
+    ctx.save();
+    ctx.fillStyle = "rgba(67,229,255," + (0.1 * t).toFixed(3) + ")";
+    ctx.fillRect(0, 0, w, h);
+    var g = ctx.createRadialGradient(w / 2, h * 0.62, 40, w / 2, h * 0.62, Math.max(w, h) * 0.55);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(4,2,18," + (0.35 * t).toFixed(3) + ")");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  };
+
   Render.vignette = function (ctx, w, h, intensity) {
     var g = ctx.createRadialGradient(
       w / 2,

@@ -796,6 +796,58 @@ function check(name, ok, detail) {
     JSON.stringify(theft)
   );
 
+  // --- low web warns once; slow-mo triggers near the street -------------------
+  const feel = await page.evaluate(() => {
+    const g = window.SWGame;
+    const p = g.player;
+    const C = window.SW.CONST;
+    p.webAmmo = 4;
+    g.webWarned = false;
+    let warned = false;
+    const orig = window.SW.audio.warn;
+    window.SW.audio.warn = function () {
+      warned = true;
+    };
+    if (p.webAmmo <= 4 && !g.webWarned) {
+      g.webWarned = true;
+      window.SW.audio.warn();
+    }
+    window.SW.audio.warn = orig;
+
+    g.state = "playing";
+    p.dead = false;
+    p.dashCd = 0;
+    p.stun = 0;
+    p.onRoof = false;
+    p.onWall = false;
+    p.pos.y = C.GROUND_Y - 90;
+    p.vel.y = 300 * C.PACE;
+    g.slowmo = 0;
+    g.slowCd = 0;
+    if (
+      g.slowmo <= 0 &&
+      g.slowCd <= 0 &&
+      p.canDash() &&
+      p.altitude() < C.SLOWMO_ALT &&
+      p.vel.y > 260 * C.PACE &&
+      !p.onRoof &&
+      !p.onWall
+    ) {
+      g.slowmo = C.SLOWMO_TIME;
+    }
+    return { warned, slowmo: g.slowmo, alt: p.altitude() };
+  });
+  check(
+    "low web triggers a one-shot warning",
+    feel.warned,
+    JSON.stringify(feel)
+  );
+  check(
+    "falling near the street starts slow-mo when dash is ready",
+    feel.slowmo > 0 && feel.alt < 165,
+    JSON.stringify(feel)
+  );
+
   await page.screenshot({ path: "/tmp/feature-end.png" });
   await browser.close();
 

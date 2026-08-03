@@ -1219,7 +1219,8 @@
       ) {
         game.slowmo = C.SLOWMO_TIME;
         game.slowCd = C.SLOWMO_COOLDOWN;
-        SW.audio.warn();
+        SW.audio.slowmo();
+        popup(p.pos.x, p.pos.y - 36, "РЫВОК!", true);
       }
 
       var d = (p.pos.x - game.world.startX) / C.PIXELS_PER_METER;
@@ -1243,6 +1244,10 @@
 
     game.world.update(dt, p.pos.x, p.pos.y);
     game.world.ensureUpTo(game.cam.x + 3600);
+    if (game.world.wavePulse && game.state === "playing" && !p.dead) {
+      popup(p.pos.x, p.pos.y - 48, "ВОЛНА ×" + game.world.wavePulse, true);
+      game.world.wavePulse = 0;
+    }
     game.world.prune(game.cam.x - 2200);
     updateParticles(dt);
   }
@@ -1317,26 +1322,6 @@
     el.weather.textContent = parts.join(" · ");
 
     var c = game.contract;
-    if (c.state === "stolen") {
-      var thief = c.thief;
-      if (!thief || thief.removed || thief.state !== "alive") {
-        // Lost him: the job is gone, a new one will turn up.
-        if (thief && thief.state === "webbed") return;
-        popup(p.pos.x, p.pos.y - 40, "ГРУЗ ПОТЕРЯН", true);
-        c.state = "idle";
-        c.thief = null;
-        c.drop = null;
-        return;
-      }
-      if (Math.abs(thief.x - p.pos.x) > 3000) {
-        popup(p.pos.x, p.pos.y - 40, "ГРУЗ ПОТЕРЯН", true);
-        c.state = "idle";
-        c.thief = null;
-        c.drop = null;
-      }
-      return;
-    }
-
     if (c.state === "carry") {
       el.contract.classList.remove("hidden");
       el.contract.classList.toggle("urgent", c.timer < 3);
@@ -1344,6 +1329,7 @@
     } else {
       el.contract.classList.add("hidden");
     }
+    el.shift.classList.toggle("heavy", !!p.carrying);
 
     var ready = p.dashCd <= 0;
     el.dash.classList.toggle("ready", ready);
@@ -1452,6 +1438,12 @@
     }
     SW.Render.contract(sctx, game.contract, game.time);
     SW.Render.rescue(sctx, game.rescue, game.time);
+    if (!settings.endless && game.state === "playing") {
+      var finishX = game.world.startX + levelDef().length * C.PIXELS_PER_METER;
+      if (finishX > game.world.startX + 200) {
+        SW.Render.finishLine(sctx, finishX, game.time, accent);
+      }
+    }
     if (game.state !== "menu" && game.state !== "settings") {
       SW.Render.tether(sctx, p);
     }
@@ -1481,7 +1473,10 @@
     if (settings.weather) {
       SW.Render.weather(ctx, cam, w, h, game.world.weather, game.time);
     }
-    if (game.state === "playing" && !p.dead && p.webAmmo <= 4) {
+    if (game.slowmo > 0 && game.state === "playing") {
+      SW.Render.slowmo(ctx, w, h, game.slowmo / C.SLOWMO_TIME);
+    }
+    if (game.state === "playing" && !p.dead && !p.hasWeb(C.WEB_COST_SWING)) {
       var nearest = null;
       var bestD = 4000;
       var list = game.world.pizzas;

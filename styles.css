@@ -165,6 +165,10 @@ canvas {
   color: #7dffcb;
 }
 
+.shift.heavy b:first-of-type {
+  color: #ffc46b;
+}
+
 .stars {
   display: flex;
   justify-content: center;
