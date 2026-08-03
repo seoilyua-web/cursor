@@ -273,7 +273,7 @@
       z.phase += dt;
 
       if (z.state === "webbed") {
-        // Wrapped: it drops out of the sky and is gone on impact.
+        // Wrapped: it drops and is gone on impact.
         z.fall += C.GRAVITY * 0.55 * dt;
         z.y += z.fall * dt;
         z.x += z.vx * 0.3 * dt;
@@ -287,74 +287,113 @@
       var dx = px - z.x;
       var dy = py - z.y;
       var dist = Math.hypot(dx, dy);
+      var sees = dist < FIRE_RANGE;
 
-      if (z.type === "runner") {
-        if (z.hostile && dist < HUNT_RANGE) {
-          // Lock on and close the distance, but never faster than a swing.
-          z.alert = Math.min(1, z.alert + dt * 2.5);
-          var speed = 230 * C.PACE;
-          z.vx = U.damp(z.vx, (dx / dist) * speed, 1.6, dt);
-          z.y = U.damp(z.y, py, 1.1, dt);
-          z.baseY = z.y;
-        } else {
-          z.alert = Math.max(0, z.alert - dt);
-          z.y = z.baseY + Math.sin(z.phase * 1.5) * z.amp;
-        }
-        z.x += z.vx * dt;
-      } else if (z.type === "netter") {
-        // Keeps its distance and throws nets instead of ramming.
-        z.y = z.baseY + Math.sin(z.phase * 1.2) * z.amp;
-        if (dist < 620) {
-          z.alert = Math.min(1, z.alert + dt * 2);
-          var want = 360;
-          var push = dist < want ? -1 : 1;
-          z.vx = U.damp(z.vx, (dx / dist) * 150 * C.PACE * push, 1.4, dt);
-          z.baseY = U.damp(z.baseY, py - 120, 0.7, dt);
-          z.fireCd -= dt;
-          if (z.fireCd <= 0) {
-            z.fireCd = 3.1;
-            this._fire(z, px, py, C.NET_SPEED / C.PACE, true);
-          }
-        } else {
-          z.alert = Math.max(0, z.alert - dt);
-        }
-        z.x += z.vx * dt;
-      } else if (z.type === "hunter") {
-        z.x += z.vx * dt;
-        z.y = z.baseY + Math.sin(z.phase * 0.8) * 26;
-        if (z.hostile && dist < FIRE_RANGE) {
-          z.alert = Math.min(1, z.alert + dt * 1.6);
-          z.fireCd -= dt;
-          if (z.fireCd <= 0) {
-            z.fireCd = 2.2;
-            this._fire(z, px, py, 360);
-          }
-        } else {
-          z.alert = Math.max(0, z.alert - dt * 0.6);
-        }
-      } else if (z.type === "sentry") {
-        if (dist < FIRE_RANGE && py < C.GROUND_Y - 20) {
+      if (z.type === "sentry") {
+        // Stands its ground on a roof and throws.
+        if (sees && py < C.GROUND_Y - 20) {
           z.alert = Math.min(1, z.alert + dt * 2);
           z.angle = Math.atan2(dy, dx);
+          z.face = dx >= 0 ? 1 : -1;
           z.fireCd -= dt;
           if (z.fireCd <= 0) {
             z.fireCd = 1.7;
-            this._fire(z, px, py, 420);
+            this._fire(z, px, py, 430);
           }
         } else {
           z.alert = Math.max(0, z.alert - dt);
           z.angle = U.damp(z.angle, -1.2, 2, dt);
         }
+        continue;
       }
 
-      // Rivals are people on webs, so they do not pass through walls.
-      if (z.type !== "sentry") {
-        var solid = this.collide(z.x, z.y, z.r);
-        if (solid) {
-          z.x += solid.nx * solid.depth;
-          z.y += solid.ny * solid.depth;
-          z.baseY = z.y;
-          if (Math.abs(solid.nx) > 0.6) z.vx = -z.vx * 0.4;
+      // --- everyone else runs on the rooftops --------------------------------
+      var chasing = z.hostile && dist < HUNT_RANGE * 1.4;
+      z.alert = U.clamp(z.alert + (chasing || sees ? dt * 2 : -dt), 0, 1);
+
+      var speed = (z.type === "hunter" ? 150 : 190) * C.PACE;
+      var want = 0;
+      if (chasing) {
+        z.face = dx >= 0 ? 1 : -1;
+        // Throwers back off when the courier gets too close.
+        var keep = z.type === "netter" ? 300 : 60;
+        want = Math.abs(dx) > keep ? z.face * speed : -z.face * speed * 0.5;
+      } else if (z.onGround) {
+        want = z.face * speed * 0.45;
+      }
+      if (z.throwFreeze > 0) {
+        z.throwFreeze -= dt;
+        want = 0;
+      }
+
+      if (z.onGround) z.vx = U.damp(z.vx, want, 8, dt);
+      else z.vx = U.damp(z.vx, want, 1.2, dt);
+
+      z.vy += C.GRAVITY * dt;
+      z.x += z.vx * dt;
+      z.y += z.vy * dt;
+      z.onGround = false;
+
+      if (z.y + z.r >= C.GROUND_Y) {
+        z.y = C.GROUND_Y - z.r;
+        z.vy = 0;
+        z.onGround = true;
+      }
+
+      var solid = this.collide(z.x, z.y, z.r);
+      if (solid) {
+        z.x += solid.nx * solid.depth;
+        z.y += solid.ny * solid.depth;
+        if (solid.ny < -0.6) {
+          z.vy = 0;
+          z.onGround = true;
+        } else if (Math.abs(solid.nx) > 0.6) {
+          // Ran into a wall: climb it if the courier is above, else turn back.
+          if (chasing && dy < -40) z.vy = -C.ENEMY_JUMP;
+          else z.face = -z.face;
+          z.vx = 0;
+        } else if (solid.ny > 0.6) {
+          z.vy = Math.max(z.vy, 0);
+        }
+      }
+
+      // Edge of the roof: leap the gap when hunting, turn around otherwise.
+      if (z.onGround) {
+        z.jumpCd -= dt;
+        var aheadX = z.x + z.face * (z.r + 10);
+        var ahead =
+          this.collide(aheadX, z.y + z.r + 8, 4) ||
+          z.y + z.r + 8 >= C.GROUND_Y;
+        if (!ahead) {
+          if (chasing && z.jumpCd <= 0 && Math.abs(dx) > 40) {
+            z.vy = -C.ENEMY_JUMP;
+            z.vx = z.face * speed * 1.25;
+            z.jumpCd = 0.6;
+            z.onGround = false;
+          } else {
+            z.face = -z.face;
+            z.vx = 0;
+          }
+        } else if (chasing && dy < -140 && z.jumpCd <= 0 && Math.abs(dx) < 260) {
+          // Courier is swinging overhead: hop for a better throwing line.
+          z.vy = -C.ENEMY_JUMP * 0.85;
+          z.jumpCd = 1.4;
+          z.onGround = false;
+        }
+      }
+
+      // --- throwing ----------------------------------------------------------
+      if (z.hostile && sees) {
+        z.fireCd -= dt;
+        if (z.fireCd <= 0) {
+          if (z.type === "netter") {
+            z.fireCd = 3.1;
+            this._fire(z, px, py, C.NET_SPEED / C.PACE, true);
+          } else {
+            z.fireCd = z.type === "hunter" ? 1.9 : 2.4;
+            this._fire(z, px, py, 430);
+          }
+          z.throwFreeze = 0.35;
         }
       }
     }
@@ -566,62 +605,68 @@
     e.fireCd = 0;
     e.alert = 0;
     e.fall = 0;
+    e.vy = 0;
+    e.onGround = false;
+    e.face = e.vx > 0 ? 1 : -1;
+    e.jumpCd = 0;
+    e.throwFreeze = 0;
     return e;
   }
 
-  World.prototype._hazard = function (x) {
+  /** Rivals stand on the roof of the block they belong to, never in mid-air. */
+  World.prototype._hazard = function (b, crane) {
     var rng = this.rng;
-    if (rng.chance(0.42)) {
-      var y = -rng.range(430, 980);
+    var roofX = b.x + b.w * rng.range(0.2, 0.8);
+    var roofY = b.top;
+
+    // A crane jib is a fine place to wait for a courier.
+    if (crane && rng.chance(0.4)) {
+      roofX = U.lerp(crane.x0 + 20, crane.x1 - 20, rng.next());
+      roofY = crane.jibY - 5;
+    }
+
+    if (rng.chance(0.34)) {
       this.hazards.push(
         baseEnemy({
           type: "hunter",
           color: "red",
-          x: x,
-          y: y,
-          baseY: y,
+          x: roofX,
+          y: roofY - 18,
           r: 18,
-          vx: -rng.range(70, 130) * C.PACE,
+          vx: -rng.range(40, 90) * C.PACE,
           phase: rng.range(0, U.TAU),
           hostile: true,
           hp: 2,
           contact: true,
         })
       );
-    } else if (rng.chance(0.3)) {
-      var ny = -rng.range(320, 760);
+    } else if (rng.chance(0.4)) {
       this.hazards.push(
         baseEnemy({
           type: "netter",
           color: "green",
-          x: x,
-          y: ny,
-          baseY: ny,
-          amp: 30,
+          x: roofX,
+          y: roofY - 16,
           r: 16,
-          vx: -rng.range(20, 50) * C.PACE,
+          vx: -rng.range(30, 70) * C.PACE,
           phase: rng.range(0, U.TAU),
           hostile: true,
           contact: false,
         })
       );
     } else {
-      var n = rng.int(1, 3);
+      var n = rng.int(1, 2);
       for (var i = 0; i < n; i++) {
-        var by = -rng.range(240, 820);
         this.hazards.push(
           baseEnemy({
             type: "runner",
             color: "red",
-            x: x + i * rng.range(90, 220),
-            y: by,
-            baseY: by,
-            amp: rng.range(24, 70),
+            x: roofX + i * rng.range(50, 120),
+            y: roofY - 16,
             r: 16,
-            vx: -rng.range(14, 46) * C.PACE,
             phase: rng.range(0, U.TAU),
-            // Two thirds of the swarm actively hunt; the rest just drift.
-            hostile: rng.chance(0.65),
+            vx: -rng.range(50, 110) * C.PACE,
+            hostile: rng.chance(0.8),
             contact: true,
           })
         );
@@ -684,7 +729,8 @@
       var b = this._push(w, h, false, forceHigh);
       if (b.h + b.antennaH >= HIGH_ANCHOR) this.lastHighX = b.x + b.w * 0.5;
 
-      if (rng.chance(district.crane)) this._crane(b);
+      var crane = null;
+      if (rng.chance(district.crane)) crane = this._crane(b);
       else if (rng.chance(district.sign)) this._sign(b);
 
       if (
@@ -701,7 +747,7 @@
         this.nextBlimpX = b.x + rng.range(2800, 4800);
       }
       if (this.hazardsOn && b.x > this.nextHazardX) {
-        this._hazard(b.x + rng.range(300, 900));
+        this._hazard(b, crane);
         this.nextHazardX = b.x + rng.range(2200, 4200);
       }
       if (this.hazardsOn && h > 300 && rng.chance(0.12)) this._turret(b);

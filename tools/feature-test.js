@@ -343,24 +343,32 @@ function check(name, ok, detail) {
     const z = g.world.hazards.find((h) => h.type === "runner" && h.hostile);
     if (!z) return { skipped: true };
     p.dead = false;
+    p.stun = 0;
     g.state = "playing";
     p.release();
-    p.pos.x = z.x - 300;
-    p.pos.y = z.y;
-    p.vel.x = 0;
-    p.vel.y = 0;
+    // Rivals run on roofs now: stand above the roof it is patrolling.
+    p.pos.x = z.x - 260;
+    p.pos.y = z.y - 90;
     const before = Math.abs(z.x - p.pos.x);
-    for (let i = 0; i < 25; i++) {
-      p.pos.x = z.x - Math.abs(z.x - p.pos.x); // hold the player still
+    let grounded = false;
+    for (let i = 0; i < 40; i++) {
+      p.pos.x = z.x + (z.x > p.pos.x ? -1 : 1) * Math.abs(z.x - p.pos.x);
       p.vel.x = 0;
       p.vel.y = 0;
+      if (z.onGround) grounded = true;
       await new Promise((r) => setTimeout(r, 20));
     }
-    return { before, after: Math.abs(z.x - p.pos.x), alert: z.alert };
+    return {
+      before,
+      after: Math.abs(z.x - p.pos.x),
+      alert: z.alert,
+      grounded,
+      flying: !z.onGround && z.vy === 0,
+    };
   });
   check(
-    "a red rival closes in on the player",
-    hunt.skipped || (hunt.after < hunt.before && hunt.alert > 0.2),
+    "a red rival runs along the roof towards the player",
+    hunt.skipped || (hunt.after < hunt.before && hunt.alert > 0.2 && hunt.grounded),
     JSON.stringify(hunt)
   );
 
@@ -410,18 +418,21 @@ function check(name, ok, detail) {
       }
       return !g.world.collide(ox, oy, 14);
     };
+    // Rivals stand on roofs, so only positions above them are safe to hover at.
     const offsets = [
-      [-260, 0],
-      [260, 0],
-      [-220, -120],
-      [220, -120],
-      [-180, 120],
-      [180, 120],
+      [-260, -60],
+      [260, -60],
+      [-220, -150],
+      [220, -150],
+      [-150, -240],
+      [150, -240],
     ];
     let stand = null;
     for (const [ox, oy] of offsets) {
-      if (clearLine(z.x + ox, z.y + oy)) {
-        stand = { x: z.x + ox, y: z.y + oy };
+      const sy = z.y + oy;
+      if (sy > -220) continue; // too close to the street
+      if (clearLine(z.x + ox, sy)) {
+        stand = { x: z.x + ox, y: sy };
         break;
       }
     }

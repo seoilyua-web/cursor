@@ -393,32 +393,15 @@
    */
   function drawRival(ctx, z, time) {
     var pal = RIVAL[z.color] || RIVAL.red;
-    var face =
-      z.type === "sentry"
-        ? Math.cos(z.angle || 0) >= 0
-          ? 1
-          : -1
-        : z.vx >= 0
-        ? 1
-        : -1;
-    var moving = Math.abs(z.vx) > 24 || z.type === "runner";
+    var face = z.face || (z.vx >= 0 ? 1 : -1);
+    var moving = Math.abs(z.vx) > 24;
+    var airborne = z.type !== "sentry" && !z.onGround;
     var winding = z.fireCd > 0 && z.fireCd < 0.5;
     var step = Math.sin(time * (moving ? 9 : 2) + z.phase);
-    var lean = z.type === "runner" && z.alert > 0.3 ? 0.22 * face : 0;
+    var lean = moving && z.alert > 0.3 ? 0.18 * face : 0;
 
     ctx.save();
     ctx.translate(z.x, z.y);
-
-    // Airborne rivals hang on a web of their own.
-    if (z.type !== "sentry") {
-      ctx.strokeStyle = "rgba(255,255,255,0.26)";
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.moveTo(0, -16);
-      ctx.lineTo(-z.vx * 0.05, -62 - Math.sin(time * 2 + z.phase) * 5);
-      ctx.stroke();
-    }
-
     ctx.rotate(lean);
     ctx.scale(face, 1);
     ctx.lineCap = "round";
@@ -427,16 +410,22 @@
     ctx.strokeStyle = RIVAL_CLOTH;
     ctx.lineWidth = 4.5;
     ctx.beginPath();
-    if (z.type === "sentry") {
+    if (airborne) {
+      // Mid-leap: legs tucked.
       ctx.moveTo(0, 4);
-      ctx.lineTo(-5, 16);
+      ctx.lineTo(7, 12);
       ctx.moveTo(0, 4);
-      ctx.lineTo(6, 16);
-    } else {
+      ctx.lineTo(-6, 14);
+    } else if (moving) {
       ctx.moveTo(0, 4);
       ctx.lineTo(step * 8, 15);
       ctx.moveTo(0, 4);
       ctx.lineTo(-step * 8, 15);
+    } else {
+      ctx.moveTo(0, 4);
+      ctx.lineTo(-5, 16);
+      ctx.moveTo(0, 4);
+      ctx.lineTo(6, 16);
     }
     ctx.stroke();
 
@@ -464,6 +453,11 @@
       ctx.lineTo(-11, -12);
       ctx.moveTo(0, -3);
       ctx.lineTo(9, 2);
+    } else if (airborne) {
+      ctx.moveTo(0, -3);
+      ctx.lineTo(11, -9);
+      ctx.moveTo(0, -3);
+      ctx.lineTo(-8, -6);
     } else if (moving) {
       ctx.moveTo(0, -3);
       ctx.lineTo(10, -6 + step * 4);
@@ -570,20 +564,27 @@
         ctx.restore();
         continue;
       }
-      var g = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, 22);
-      g.addColorStop(0, "rgba(255,150,90,0.95)");
-      g.addColorStop(1, "rgba(255,90,60,0)");
+      // Rival web bolt: same stuff as the hero's, tinted to their colours.
+      var tint = s.src && s.src.color === "green" ? "150,255,200" : "255,170,170";
+      var g = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, 18);
+      g.addColorStop(0, "rgba(" + tint + ",0.9)");
+      g.addColorStop(1, "rgba(" + tint + ",0)");
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 22, 0, U.TAU);
+      ctx.arc(s.x, s.y, 18, 0, U.TAU);
       ctx.fill();
-      ctx.fillStyle = "#ffe0b0";
+      ctx.fillStyle = "#ffffff";
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 4, 0, U.TAU);
+      ctx.arc(s.x, s.y, 4.5, 0, U.TAU);
       ctx.fill();
-      ctx.strokeStyle = "rgba(255,150,90,0.55)";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(" + tint + ",0.6)";
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
+      for (var t = 0; t < 4; t++) {
+        var a = (t / 4) * U.TAU + s.spin;
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(s.x + Math.cos(a) * 9, s.y + Math.sin(a) * 9);
+      }
       ctx.moveTo(s.x, s.y);
       ctx.lineTo(s.x - s.vx * 0.03, s.y - s.vy * 0.03);
       ctx.stroke();

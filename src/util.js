@@ -115,6 +115,7 @@
       WEB_SHOT_SPEED: 1500,
       ZIP_SPEED: 900,
       NET_SPEED: 300,
+      ENEMY_JUMP: 620,
     },
     FIXED: {
       MAX_ROPE: 560,
