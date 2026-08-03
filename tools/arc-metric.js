@@ -170,6 +170,18 @@ function fly(seed, seconds) {
       }
     }
     player.update(dt, input, world, game);
+
+    // Pizza is the web supply, so the benchmark has to pick it up like the game.
+    for (const o of world.pizzas) {
+      if (o.taken) continue;
+      const dx = o.x - player.pos.x;
+      const dy = o.y - player.pos.y;
+      if (dx * dx + dy * dy < 43 * 43) {
+        o.taken = true;
+        player.addWeb(C.WEB_PER_PIZZA);
+      }
+    }
+
     world.update(dt, player.pos.x, player.pos.y);
     world.ensureUpTo(player.pos.x + 3000);
   }

@@ -35,6 +35,7 @@
     this.releasePerfect = false;
     this.tether = null;
     this.carrying = false;
+    this.webAmmo = C.WEB_START;
   }
 
   Player.prototype.reset = function (x, y) {
@@ -61,6 +62,7 @@
     this.releasePerfect = false;
     this.tether = null;
     this.carrying = false;
+    this.webAmmo = C.WEB_START;
   };
 
   Player.prototype.attached = function () {
@@ -161,9 +163,25 @@
     return best;
   };
 
+  /** Pizza is what the web is spun from, so every line costs a portion. */
+  Player.prototype.hasWeb = function (cost) {
+    return this.webAmmo >= (cost || 1);
+  };
+
+  Player.prototype.spendWeb = function (cost) {
+    this.webAmmo = Math.max(0, this.webAmmo - (cost || 1));
+  };
+
+  Player.prototype.addWeb = function (amount) {
+    var before = this.webAmmo;
+    this.webAmmo = Math.min(C.WEB_MAX, this.webAmmo + amount);
+    return this.webAmmo - before;
+  };
+
   Player.prototype.shoot = function (tx, ty, world) {
     // A net pins the arms: no webs until it is torn off.
     if (this.dead || this.stun > 0 || this.tether) return false;
+    if (!this.hasWeb(C.WEB_COST_SWING)) return false;
     var dx = tx - this.pos.x;
     var dy = ty - this.pos.y;
     var d = Math.hypot(dx, dy);
@@ -187,6 +205,7 @@
     this.web = "flying";
     this.webT = 0;
     this.webDur = Math.max(0.03, hit.dist / C.WEB_SPEED);
+    this.spendWeb(C.WEB_COST_SWING);
     return true;
   };
 

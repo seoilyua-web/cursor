@@ -145,18 +145,20 @@ function run(seed, seconds) {
     world.update(dt, player.pos.x, player.pos.y);
     world.ensureUpTo(player.pos.x + 3000);
 
-    for (const o of world.orbs) {
+    for (const o of world.pizzas) {
       if (o.taken) continue;
       const dx = o.x - player.pos.x;
       const dy = o.y - player.pos.y;
       if (dx * dx + dy * dy < 35 * 35) {
         o.taken = true;
         orbs++;
+        player.addWeb(C.WEB_PER_PIZZA);
       }
     }
   }
 
   return {
+    web: Math.round(player.webAmmo),
     seed,
     reason: game.reason,
     attachedAt: player.web,
@@ -175,7 +177,7 @@ for (let i = 0; i < 8; i++) {
   if (!r.dead) alive++;
   console.log(
     `seed ${r.seed}\tt=${r.survived}s\t${r.dead ? "CRASH" : "alive"}\t` +
-      `${r.distance} m\torbs ${r.orbs}\t${r.reason}`
+      `${r.distance} m\tpizza ${r.orbs}\tweb ${r.web}\t${r.reason}`
   );
 }
 console.log(`\nsurvived full ${seconds}s: ${alive}/8`);

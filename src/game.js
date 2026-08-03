@@ -13,6 +13,9 @@
     distance: document.getElementById("hud-distance"),
     score: document.getElementById("hud-score"),
     deliveries: document.getElementById("hud-deliveries"),
+    web: document.getElementById("hud-web"),
+    webFill: document.getElementById("web-fill"),
+    webValue: document.getElementById("web-value"),
     best: document.getElementById("hud-best"),
     speed: document.getElementById("hud-speed"),
     combo: document.getElementById("hud-combo"),
@@ -318,7 +321,7 @@
     game.challenges = buildChallenges();
     game.breakdown = {
       distance: 0,
-      orbs: 0,
+      pizzas: 0,
       style: 0,
       perfect: 0,
       contracts: 0,
@@ -381,7 +384,7 @@
     el.best.textContent = game.best;
     var LABELS = {
       distance: "дистанция",
-      orbs: "энергосферы",
+      pizzas: "пицца",
       style: "стиль",
       perfect: "точные отпускания",
       contracts: "доставка",
@@ -600,12 +603,12 @@
     game.comboTimer = 5;
   }
 
-  function collectOrbs() {
+  function collectPizzas() {
     var p = game.player;
-    var orbs = game.world.orbs;
-    var reach = C.PLAYER_R + 22;
-    for (var i = 0; i < orbs.length; i++) {
-      var o = orbs[i];
+    var pizzas = game.world.pizzas;
+    var reach = C.PLAYER_R + 30;
+    for (var i = 0; i < pizzas.length; i++) {
+      var o = pizzas[i];
       if (o.taken) continue;
       if (o.x < p.pos.x - 200) continue;
       if (o.x > p.pos.x + 200) break;
@@ -614,10 +617,12 @@
       if (dx * dx + dy * dy > reach * reach) continue;
       o.taken = true;
       bumpCombo(1);
-      award("orbs", 50 * multiplier());
-      progressChallenge("orbs", 1);
-      ring(o.x, o.y, "rgba(120,240,255,0.9)");
-      burst(o.x, o.y, 6, "#8ff0ff", 180);
+      award("pizzas", 50 * multiplier());
+      progressChallenge("pizzas", 1);
+      var gained = p.addWeb(C.WEB_PER_PIZZA);
+      ring(o.x, o.y, "rgba(255,196,107,0.9)");
+      burst(o.x, o.y, 6, "#ffc46b", 180);
+      popup(o.x, o.y - 26, gained ? "+" + gained + " паутины" : "запас полон", true);
       SW.audio.ping(Math.min(game.combo - 1, 14));
     }
   }
@@ -667,7 +672,7 @@
 
   var CHALLENGE_POOL = [
     { id: "enemies", text: "Сбей %n врагов паутиной", min: 4, max: 7, bonus: 900 },
-    { id: "orbs", text: "Собери %n энергосфер", min: 18, max: 34, bonus: 700 },
+    { id: "pizzas", text: "Собери %n пицц", min: 14, max: 26, bonus: 700 },
     { id: "contracts", text: "Доставь %n груза", min: 3, max: 5, bonus: 1200 },
     { id: "rescues", text: "Спаси %n человек", min: 1, max: 3, bonus: 1100 },
     { id: "perfect", text: "Отпусти нить точно %n раз", min: 5, max: 10, bonus: 800 },
@@ -841,11 +846,16 @@
   function fireWebShot(tx, ty) {
     var p = game.player;
     if (game.shotCd > 0 || p.dead || p.stun > 0) return false;
+    if (!p.hasWeb(C.WEB_COST_SHOT)) {
+      outOfWeb();
+      return false;
+    }
     var dx = tx - p.pos.x;
     var dy = ty - p.pos.y;
     var d = Math.hypot(dx, dy);
     if (d < 1) return false;
     game.shotCd = C.WEB_SHOT_CD;
+    p.spendWeb(C.WEB_COST_SHOT);
     p.handPos(_hand);
     game.webShots.push({
       x: _hand.x,
@@ -1035,6 +1045,7 @@
     p.update(dt, game.input, game.world, game);
 
     updateWebShots(dt);
+    dryCd -= dt;
 
     if (!p.dead) {
       var hz = game.world.hazardAt(p.pos.x, p.pos.y, C.PLAYER_R);
@@ -1048,7 +1059,7 @@
         }
       }
 
-      collectOrbs();
+      collectPizzas();
       styleScore(dt);
       updateContract(dt);
       updateRescue(dt);
@@ -1102,6 +1113,12 @@
     } else {
       el.combo.classList.add("hidden");
     }
+
+    var ammo = p.webAmmo;
+    el.webValue.textContent = Math.floor(ammo);
+    el.webFill.style.width = ((100 * ammo) / C.WEB_MAX).toFixed(1) + "%";
+    el.web.classList.toggle("low", ammo <= 4);
+    el.web.classList.toggle("empty", ammo <= 0);
 
     if (game.chain > 1) {
       el.chain.textContent = "серия " + game.chain;
@@ -1223,7 +1240,7 @@
 
     SW.Render.buildings(ctx, game.world, cam, w);
     SW.Render.props(ctx, game.world, cam, w, game.time);
-    SW.Render.orbs(ctx, game.world, cam, w, game.time);
+    SW.Render.pizzas(ctx, game.world, cam, w, game.time);
     SW.Render.hazards(ctx, game.world, cam, w, game.time);
     SW.Render.enemyShots(ctx, game.world.shots);
     SW.Render.webShots(ctx, game.webShots);
@@ -1410,6 +1427,15 @@
     }
   }
 
+  var dryCd = 0;
+
+  function outOfWeb() {
+    if (dryCd > 0) return;
+    dryCd = 1.2;
+    SW.audio.thud();
+    popup(game.player.pos.x, game.player.pos.y - 34, "ПАУТИНА КОНЧИЛАСЬ", true);
+  }
+
   function fireOrKick() {
     var p = game.player;
     if (game.targetEnemy) {
@@ -1417,6 +1443,7 @@
       return;
     }
     if (p.shoot(game.aim.x, game.aim.y, game.world)) return;
+    if (!p.hasWeb(C.WEB_COST_SWING) && !p.tether && p.stun <= 0) outOfWeb();
     if (p.canKick()) p.kickToward(game.aim.x, game.aim.y, game);
   }
 

@@ -56,9 +56,12 @@ function check(name, ok, detail) {
       found = p.probeDir(Math.cos(a), Math.sin(a), g.world);
     }
     if (!found) return { skipped: true };
-    g.aim.sx = (found.x - g.cam.x) * g.cam.zoom + g.view.w / 2;
-    g.aim.sy = (found.y - g.cam.y) * g.cam.zoom + g.view.h / 2;
-    await new Promise((r) => setTimeout(r, 120));
+    // The hero keeps moving, so track the anchor for a few frames.
+    for (let i = 0; i < 20 && !g.aimHit; i++) {
+      g.aim.sx = (found.x - g.cam.x) * g.cam.zoom + g.view.w / 2;
+      g.aim.sy = (found.y - g.cam.y) * g.cam.zoom + g.view.h / 2;
+      await new Promise((r) => setTimeout(r, 25));
+    }
     return { hit: !!g.aimHit, noArcState: g.preview === undefined };
   });
   check(
@@ -516,6 +519,63 @@ function check(name, ok, detail) {
     return { stun: +p.stun.toFixed(2) };
   });
   check("enemy fire stuns the player", shotHit.stun > 0, JSON.stringify(shotHit));
+
+  // --- pizza is the web supply -------------------------------------------------
+  const pizza = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const p = g.player;
+    const C = window.SW.CONST;
+    p.dead = false;
+    p.stun = 0;
+    g.state = "playing";
+    p.release();
+
+    // Park next to an untouched slice and let the pickup happen.
+    const slice = g.world.pizzas.find((o) => !o.taken && o.y < -260);
+    if (!slice) return { skipped: true };
+    p.webAmmo = 4;
+    const beforeScore = g.breakdown.pizzas;
+    for (let i = 0; i < 30 && !slice.taken; i++) {
+      p.pos.x = slice.x;
+      p.pos.y = slice.y;
+      p.vel.x = 0;
+      p.vel.y = 0;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    const afterPickup = p.webAmmo;
+
+    // Firing a web costs supply; at zero it must refuse.
+    p.webAmmo = 2;
+    const anchor = p.aimAssist(p.pos.x + 300, p.pos.y - 300, g.world);
+    const spent = anchor ? p.shoot(anchor.x, anchor.y, g.world) : null;
+    const afterShot = p.webAmmo;
+    p.release();
+    p.webAmmo = 0;
+    const dry = anchor ? p.shoot(anchor.x, anchor.y, g.world) : null;
+    await new Promise((r) => setTimeout(r, 60));
+    const hudEmpty = document.getElementById("hud-web").classList.contains("empty");
+    return {
+      taken: slice.taken,
+      gained: afterPickup - 4,
+      scored: g.breakdown.pizzas > beforeScore,
+      spent,
+      afterShot,
+      dry,
+      hudEmpty,
+    };
+  });
+  check(
+    "pizza refills the web and every line costs supply",
+    pizza.skipped ||
+      (pizza.taken &&
+        pizza.gained === 5 &&
+        pizza.scored &&
+        pizza.spent === true &&
+        pizza.afterShot === 1 &&
+        pizza.dry === false &&
+        pizza.hudEmpty),
+    JSON.stringify(pizza)
+  );
 
   // --- rescue: someone falls and gets caught ---------------------------------
   const rescue = await page.evaluate(async () => {

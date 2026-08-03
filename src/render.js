@@ -672,33 +672,67 @@
     ctx.restore();
   };
 
-  Render.orbs = function (ctx, world, cam, w, time) {
+  /** Pizza slices: the courier's fuel, and therefore the web supply. */
+  Render.pizzas = function (ctx, world, cam, w, time) {
     var half = w / (2 * cam.zoom) + 60;
     ctx.save();
-    for (var i = 0; i < world.orbs.length; i++) {
-      var o = world.orbs[i];
+    for (var i = 0; i < world.pizzas.length; i++) {
+      var o = world.pizzas[i];
       if (o.taken) continue;
       if (o.x < cam.x - half) continue;
       if (o.x > cam.x + half) break;
-      var pulse = 0.75 + Math.sin(time * 3 + o.phase) * 0.25;
-      var r = 9 + pulse * 2;
-      var g = ctx.createRadialGradient(o.x, o.y, 1, o.x, o.y, r * 2.6);
-      g.addColorStop(0, "rgba(190,255,255,0.95)");
-      g.addColorStop(0.35, "rgba(67,229,255,0.55)");
-      g.addColorStop(1, "rgba(67,229,255,0)");
-      ctx.fillStyle = g;
+
+      var bob = Math.sin(time * 2.2 + o.phase) * 4;
+      var y = o.y + bob;
+
+      if (Render.quality > 0) {
+        var g = ctx.createRadialGradient(o.x, y, 2, o.x, y, 42);
+        g.addColorStop(0, "rgba(255,196,107,0.45)");
+        g.addColorStop(1, "rgba(255,150,60,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(o.x, y, 42, 0, U.TAU);
+        ctx.fill();
+      }
+
+      ctx.save();
+      ctx.translate(o.x, y);
+      ctx.rotate(Math.sin(time * o.spin + o.phase) * 0.5 - 0.4);
+
+      // Crust arc plus the cheese wedge, drawn as one slice.
+      ctx.fillStyle = "#e8a83c";
       ctx.beginPath();
-      ctx.arc(o.x, o.y, r * 2.6, 0, U.TAU);
+      ctx.moveTo(0, 13);
+      ctx.lineTo(-11, -11);
+      ctx.quadraticCurveTo(0, -17, 11, -11);
+      ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = "rgba(235,255,255,0.95)";
+
+      ctx.fillStyle = "#ffd98a";
       ctx.beginPath();
-      ctx.arc(o.x, o.y, r * 0.42, 0, U.TAU);
+      ctx.moveTo(0, 10);
+      ctx.lineTo(-8.5, -8);
+      ctx.quadraticCurveTo(0, -12.5, 8.5, -8);
+      ctx.closePath();
       ctx.fill();
+
+      ctx.fillStyle = "#d63a2f";
+      ctx.beginPath();
+      ctx.arc(-3.4, -4.6, 2.2, 0, U.TAU);
+      ctx.arc(3.6, -5.4, 2, 0, U.TAU);
+      ctx.arc(0.2, 1.4, 2.1, 0, U.TAU);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(120,90,40,0.55)";
+      ctx.beginPath();
+      ctx.arc(-5.2, -9.4, 1.1, 0, U.TAU);
+      ctx.arc(5.4, -9.8, 1, 0, U.TAU);
+      ctx.fill();
+      ctx.restore();
     }
     ctx.restore();
   };
 
-  /** Cargo waiting on a roof and the pad it has to reach. */
   Render.contract = function (ctx, contract, time) {
     if (!contract) return;
     ctx.save();

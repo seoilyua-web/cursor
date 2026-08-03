@@ -163,7 +163,7 @@
     this.hazards = [];
     this.shots = [];
     this.boxes = [];
-    this.orbs = [];
+    this.pizzas = [];
     this.startX = 0;
     this.nextX = 0;
     this.id = 0;
@@ -185,7 +185,7 @@
     this.hazards.length = 0;
     this.shots.length = 0;
     this.boxes.length = 0;
-    this.orbs.length = 0;
+    this.pizzas.length = 0;
     this.nextX = -400;
     this.startX = 0;
     this.id = 0;
@@ -694,9 +694,21 @@
     );
   };
 
-  World.prototype._spawnOrbs = function (b, gap) {
+  World.prototype._spawnPizzas = function (b, gap) {
     var rng = this.rng;
-    if (gap < 130 || !rng.chance(0.82)) return;
+
+    // A slice waiting on the roof: fuel for anyone flying above the arcs.
+    if (rng.chance(0.38)) {
+      this.pizzas.push({
+        x: b.x + b.w * rng.range(0.25, 0.75),
+        y: b.top - 24,
+        taken: false,
+        phase: rng.range(0, U.TAU),
+        spin: rng.range(-0.6, 0.6),
+      });
+    }
+
+    if (gap < 120 || !rng.chance(0.88)) return;
     var n = rng.int(3, 6);
     var x0 = b.x + b.w + 26;
     var x1 = b.x + b.w + gap - 26;
@@ -704,11 +716,12 @@
     var amp = rng.range(20, 100);
     for (var i = 0; i < n; i++) {
       var t = n === 1 ? 0.5 : i / (n - 1);
-      this.orbs.push({
+      this.pizzas.push({
         x: U.lerp(x0, x1, t),
         y: base - Math.sin(t * Math.PI) * amp,
         taken: false,
         phase: rng.range(0, U.TAU),
+        spin: rng.range(-0.6, 0.6),
       });
     }
   };
@@ -753,7 +766,7 @@
       if (this.hazardsOn && h > 300 && rng.chance(0.12)) this._turret(b);
 
       var gap = rng.range(district.gap[0], district.gap[1]);
-      this._spawnOrbs(b, gap);
+      this._spawnPizzas(b, gap);
       this.nextX += w + gap;
     }
     this.boxes.sort(function (p, q) {
@@ -768,7 +781,7 @@
     while (this.boxes.length && this.boxes[0].x + this.boxes[0].w < x) {
       this.boxes.shift();
     }
-    while (this.orbs.length && this.orbs[0].x < x) this.orbs.shift();
+    while (this.pizzas.length && this.pizzas[0].x < x) this.pizzas.shift();
     var i;
     for (i = this.props.length - 1; i >= 0; i--) {
       var p = this.props[i];
