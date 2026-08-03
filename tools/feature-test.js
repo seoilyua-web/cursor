@@ -332,15 +332,15 @@ function check(name, ok, detail) {
     return { kinds, hostile, total: g.world.hazards.length };
   });
   check(
-    "hostile enemies and turrets are generated",
-    enemies.hostile > 0 && enemies.kinds.turret > 0,
+    "hostile rivals and rooftop sentries are generated",
+    enemies.hostile > 0 && enemies.kinds.sentry > 0,
     JSON.stringify(enemies)
   );
 
   const hunt = await page.evaluate(async () => {
     const g = window.SWGame;
     const p = g.player;
-    const z = g.world.hazards.find((h) => h.type === "drone" && h.hostile);
+    const z = g.world.hazards.find((h) => h.type === "runner" && h.hostile);
     if (!z) return { skipped: true };
     p.dead = false;
     g.state = "playing";
@@ -359,7 +359,7 @@ function check(name, ok, detail) {
     return { before, after: Math.abs(z.x - p.pos.x), alert: z.alert };
   });
   check(
-    "hostile drone closes in on the player",
+    "a red rival closes in on the player",
     hunt.skipped || (hunt.after < hunt.before && hunt.alert > 0.2),
     JSON.stringify(hunt)
   );
@@ -367,7 +367,7 @@ function check(name, ok, detail) {
   const turret = await page.evaluate(async () => {
     const g = window.SWGame;
     const p = g.player;
-    const z = g.world.hazards.find((h) => h.type === "turret");
+    const z = g.world.hazards.find((h) => h.type === "sentry");
     if (!z) return { skipped: true };
     g.world.shots.length = 0;
     p.dead = false;
@@ -383,7 +383,7 @@ function check(name, ok, detail) {
     return { shots: g.world.shots.length, alert: z.alert };
   });
   check(
-    "turret opens fire on a nearby player",
+    "a green sentry opens fire on a nearby player",
     turret.skipped || turret.shots > 0,
     JSON.stringify(turret)
   );
@@ -391,13 +391,43 @@ function check(name, ok, detail) {
   const webbed = await page.evaluate(async () => {
     const g = window.SWGame;
     const p = g.player;
-    const z = g.world.hazards.find((h) => h.type === "drone" && h.state === "alive");
+    const z = g.world.hazards.find((h) => h.type === "runner" && h.state === "alive");
     if (!z) return { skipped: true };
     p.dead = false;
+    // A sentry may still have the hero stunned from the previous check, and a
+    // stunned courier cannot fire.
+    p.stun = 0;
+    g.world.shots.length = 0;
     g.state = "playing";
     p.release();
-    p.pos.x = z.x - 260;
-    p.pos.y = z.y;
+    // Stand where the line of fire is actually clear: rivals now collide with
+    // buildings, so they often hover right next to a wall.
+    const clearLine = (ox, oy) => {
+      for (let t = 0.1; t <= 1; t += 0.1) {
+        const x = ox + (z.x - ox) * t;
+        const y = oy + (z.y - oy) * t;
+        if (g.world.collide(x, y, 6)) return false;
+      }
+      return !g.world.collide(ox, oy, 14);
+    };
+    const offsets = [
+      [-260, 0],
+      [260, 0],
+      [-220, -120],
+      [220, -120],
+      [-180, 120],
+      [180, 120],
+    ];
+    let stand = null;
+    for (const [ox, oy] of offsets) {
+      if (clearLine(z.x + ox, z.y + oy)) {
+        stand = { x: z.x + ox, y: z.y + oy };
+        break;
+      }
+    }
+    if (!stand) return { skipped: "no clear line" };
+    p.pos.x = stand.x;
+    p.pos.y = stand.y;
     p.vel.x = 0;
     p.vel.y = 0;
     // Track the enemy with the cursor the way a player would, then fire.
@@ -406,6 +436,9 @@ function check(name, ok, detail) {
     let targeted = false;
     let fired = false;
     for (let i = 0; i < 60 && z.state === "alive"; i++) {
+      // Hold the range: a red rival that rams you stuns you out of shooting.
+      p.pos.x = stand.x;
+      p.pos.y = stand.y;
       p.vel.x = 0;
       p.vel.y = 0;
       g.aim.sx = (z.x - g.cam.x) * g.cam.zoom + g.view.w / 2;
@@ -413,20 +446,29 @@ function check(name, ok, detail) {
       await new Promise((r) => setTimeout(r, 20));
       if (g.targetEnemy) {
         targeted = true;
-        if (!fired) {
-          fired = true;
-          canvas.dispatchEvent(
-            new MouseEvent("mousedown", {
-              clientX: g.aim.sx,
-              clientY: g.aim.sy,
-              button: 0,
-            })
-          );
-          window.dispatchEvent(new MouseEvent("mouseup", { button: 0 }));
-        }
+        fired = true;
+        // Rivals close in, so keep firing instead of taking one static shot.
+        canvas.dispatchEvent(
+          new MouseEvent("mousedown", {
+            clientX: g.aim.sx,
+            clientY: g.aim.sy,
+            button: 0,
+          })
+        );
+        window.dispatchEvent(new MouseEvent("mouseup", { button: 0 }));
       }
     }
-    return { targeted, state: z.state, gain: Math.round(g.score - before) };
+    return {
+      targeted,
+      fired,
+      state: z.state,
+      gain: Math.round(g.score - before),
+      shots: g.webShots.length,
+      cd: +g.shotCd.toFixed(2),
+      stun: +p.stun.toFixed(2),
+      dead: p.dead,
+      dist: Math.round(Math.hypot(p.pos.x - z.x, p.pos.y - z.y)),
+    };
   });
   check(
     "a web shot brings an enemy down",
@@ -437,8 +479,15 @@ function check(name, ok, detail) {
   const shotHit = await page.evaluate(async () => {
     const g = window.SWGame;
     const p = g.player;
+    // Clear air: on the street the hero would just be killed again each frame.
+    p.release();
     p.dead = false;
     p.stun = 0;
+    p.onRoof = false;
+    p.onWall = false;
+    p.pos.y = -1400;
+    p.vel.x = 0;
+    p.vel.y = 0;
     g.state = "playing";
     g.world.shots.length = 0;
     g.world.shots.push({

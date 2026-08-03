@@ -172,7 +172,8 @@ function swing(world, anchorY, hold, input) {
   world.hazardsOn = true;
   // High above the skyline so the ray meets nothing but the cocoon.
   const enemy = {
-    type: "drone",
+    type: "runner",
+    color: "red",
     x: 3000,
     y: -1500,
     baseY: -1500,

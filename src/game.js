@@ -877,9 +877,9 @@
         if (downed) {
           var pts = award(
             "enemies",
-            (enemy.type === "heli"
+            (enemy.type === "hunter"
               ? 220
-              : enemy.type === "turret"
+              : enemy.type === "sentry"
               ? 160
               : enemy.type === "netter"
               ? 180

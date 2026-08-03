@@ -56,7 +56,7 @@ const URL = process.argv[2] || "http://localhost:8000/index.html";
   // A helicopter in frame.
   const heli = await page.evaluate(() => {
     const g = window.SWGame;
-    const z = g.world.hazards.find((h) => h.type === "heli");
+    const z = g.world.hazards.find((h) => h.type === "hunter");
     if (!z) return null;
     g.cam.x = z.x;
     g.cam.y = z.y + 120;

@@ -288,7 +288,7 @@
       var dy = py - z.y;
       var dist = Math.hypot(dx, dy);
 
-      if (z.type === "drone") {
+      if (z.type === "runner") {
         if (z.hostile && dist < HUNT_RANGE) {
           // Lock on and close the distance, but never faster than a swing.
           z.alert = Math.min(1, z.alert + dt * 2.5);
@@ -319,7 +319,7 @@
           z.alert = Math.max(0, z.alert - dt);
         }
         z.x += z.vx * dt;
-      } else if (z.type === "heli") {
+      } else if (z.type === "hunter") {
         z.x += z.vx * dt;
         z.y = z.baseY + Math.sin(z.phase * 0.8) * 26;
         if (z.hostile && dist < FIRE_RANGE) {
@@ -332,7 +332,7 @@
         } else {
           z.alert = Math.max(0, z.alert - dt * 0.6);
         }
-      } else if (z.type === "turret") {
+      } else if (z.type === "sentry") {
         if (dist < FIRE_RANGE && py < C.GROUND_Y - 20) {
           z.alert = Math.min(1, z.alert + dt * 2);
           z.angle = Math.atan2(dy, dx);
@@ -344,6 +344,17 @@
         } else {
           z.alert = Math.max(0, z.alert - dt);
           z.angle = U.damp(z.angle, -1.2, 2, dt);
+        }
+      }
+
+      // Rivals are people on webs, so they do not pass through walls.
+      if (z.type !== "sentry") {
+        var solid = this.collide(z.x, z.y, z.r);
+        if (solid) {
+          z.x += solid.nx * solid.depth;
+          z.y += solid.ny * solid.depth;
+          z.baseY = z.y;
+          if (Math.abs(solid.nx) > 0.6) z.vx = -z.vx * 0.4;
         }
       }
     }
@@ -564,14 +575,14 @@
       var y = -rng.range(430, 980);
       this.hazards.push(
         baseEnemy({
-          type: "heli",
+          type: "hunter",
+          color: "red",
           x: x,
           y: y,
           baseY: y,
-          r: 30,
+          r: 18,
           vx: -rng.range(70, 130) * C.PACE,
           phase: rng.range(0, U.TAU),
-          beam: rng.range(240, 420),
           hostile: true,
           hp: 2,
           contact: true,
@@ -582,11 +593,12 @@
       this.hazards.push(
         baseEnemy({
           type: "netter",
+          color: "green",
           x: x,
           y: ny,
           baseY: ny,
           amp: 30,
-          r: 17,
+          r: 16,
           vx: -rng.range(20, 50) * C.PACE,
           phase: rng.range(0, U.TAU),
           hostile: true,
@@ -599,12 +611,13 @@
         var by = -rng.range(240, 820);
         this.hazards.push(
           baseEnemy({
-            type: "drone",
+            type: "runner",
+            color: "red",
             x: x + i * rng.range(90, 220),
             y: by,
             baseY: by,
             amp: rng.range(24, 70),
-            r: 15,
+            r: 16,
             vx: -rng.range(14, 46) * C.PACE,
             phase: rng.range(0, U.TAU),
             // Two thirds of the swarm actively hunt; the rest just drift.
@@ -621,10 +634,11 @@
     var x = b.x + b.w * rng.range(0.2, 0.8);
     this.hazards.push(
       baseEnemy({
-        type: "turret",
+        type: "sentry",
+        color: "green",
         x: x,
-        y: b.top - 14,
-        baseY: b.top - 14,
+        y: b.top - 18,
+        baseY: b.top - 18,
         r: 16,
         vx: 0,
         phase: 0,

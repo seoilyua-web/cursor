@@ -349,116 +349,6 @@
     ctx.stroke();
   }
 
-  function drawHeli(ctx, z, time) {
-    var blade = time * 28 + z.phase;
-    // Search beam sweeping the street below.
-    var sweep = Math.sin(time * 0.9 + z.phase) * 0.42;
-    ctx.save();
-    ctx.translate(z.x, z.y);
-    var grad = ctx.createLinearGradient(0, 0, 0, z.beam);
-    grad.addColorStop(0, "rgba(255,240,190,0.24)");
-    grad.addColorStop(1, "rgba(255,240,190,0)");
-    ctx.save();
-    ctx.rotate(sweep);
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.moveTo(-8, 8);
-    ctx.lineTo(8, 8);
-    ctx.lineTo(z.beam * 0.42, z.beam);
-    ctx.lineTo(-z.beam * 0.42, z.beam);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    ctx.fillStyle = "#20263c";
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 30, 15, 0, 0, U.TAU);
-    ctx.fill();
-    ctx.fillRect(20, -4, 34, 6);
-    ctx.fillStyle = "#0d1120";
-    ctx.fillRect(48, -14, 5, 18);
-    ctx.fillStyle = "rgba(120,200,255,0.75)";
-    ctx.beginPath();
-    ctx.ellipse(-13, -2, 9, 7, 0, 0, U.TAU);
-    ctx.fill();
-
-    ctx.strokeStyle = "rgba(200,215,255,0.65)";
-    ctx.lineWidth = 2.5;
-    var span = 40 * Math.cos(blade);
-    ctx.beginPath();
-    ctx.moveTo(-span, -17);
-    ctx.lineTo(span, -17);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, -17);
-    ctx.lineTo(0, -8);
-    ctx.stroke();
-
-    ctx.fillStyle = Math.sin(time * 6) > 0 ? "#ff3b6b" : "rgba(255,59,107,0.25)";
-    ctx.beginPath();
-    ctx.arc(0, 13, 3.5, 0, U.TAU);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function drawDrone(ctx, z, time) {
-    ctx.save();
-    ctx.translate(z.x, z.y);
-    ctx.rotate(Math.sin(time * 2 + z.phase) * 0.12);
-    ctx.strokeStyle = "#39405e";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(-14, -6);
-    ctx.lineTo(14, 6);
-    ctx.moveTo(14, -6);
-    ctx.lineTo(-14, 6);
-    ctx.stroke();
-    ctx.fillStyle = "#1b2138";
-    ctx.beginPath();
-    ctx.arc(0, 0, 7, 0, U.TAU);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255,80,110,0.9)";
-    ctx.beginPath();
-    ctx.arc(0, 0, 3, 0, U.TAU);
-    ctx.fill();
-    var spin = time * 30 + z.phase;
-    ctx.strokeStyle = "rgba(190,210,255,0.5)";
-    ctx.lineWidth = 1.5;
-    for (var i = 0; i < 4; i++) {
-      var sx = i < 2 ? -14 : 14;
-      var sy = i % 2 === 0 ? -6 : 6;
-      var r = 7 * Math.abs(Math.cos(spin + i));
-      ctx.beginPath();
-      ctx.moveTo(sx - r, sy);
-      ctx.lineTo(sx + r, sy);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  function drawTurret(ctx, z) {
-    ctx.save();
-    ctx.translate(z.x, z.y);
-    ctx.fillStyle = "#242a40";
-    ctx.beginPath();
-    ctx.arc(0, 4, 13, Math.PI, 0);
-    ctx.fill();
-    ctx.fillRect(-14, 4, 28, 10);
-    ctx.save();
-    ctx.rotate(z.angle);
-    ctx.fillStyle = "#39405e";
-    ctx.fillRect(0, -4, 30, 8);
-    ctx.fillStyle = "#11162a";
-    ctx.fillRect(24, -3, 8, 6);
-    ctx.restore();
-    var lit = z.alert > 0.15;
-    ctx.fillStyle = lit ? "#ff4a6b" : "rgba(255,120,140,0.35)";
-    ctx.beginPath();
-    ctx.arc(0, -3, 3.6, 0, U.TAU);
-    ctx.fill();
-    ctx.restore();
-  }
-
   function drawWebbed(ctx, z, time) {
     var r = z.r + 5;
     ctx.save();
@@ -491,35 +381,122 @@
     ctx.fill();
   }
 
-  function drawNetter(ctx, z, time) {
+  var RIVAL = {
+    red: { suit: "#e2382f", dark: "#8f1d19" },
+    green: { suit: "#2fbe5c", dark: "#177437" },
+  };
+  var RIVAL_CLOTH = "#16171d";
+
+  /**
+   * Rival couriers: same build as the hero, only in their own colours. The pose
+   * says what they are doing — closing in, winding up a throw, or just hanging.
+   */
+  function drawRival(ctx, z, time) {
+    var pal = RIVAL[z.color] || RIVAL.red;
+    var face =
+      z.type === "sentry"
+        ? Math.cos(z.angle || 0) >= 0
+          ? 1
+          : -1
+        : z.vx >= 0
+        ? 1
+        : -1;
+    var moving = Math.abs(z.vx) > 24 || z.type === "runner";
+    var winding = z.fireCd > 0 && z.fireCd < 0.5;
+    var step = Math.sin(time * (moving ? 9 : 2) + z.phase);
+    var lean = z.type === "runner" && z.alert > 0.3 ? 0.22 * face : 0;
+
     ctx.save();
     ctx.translate(z.x, z.y);
-    ctx.rotate(Math.sin(time * 1.6 + z.phase) * 0.1);
-    ctx.strokeStyle = "#2e5548";
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.moveTo(-16, -5);
-    ctx.lineTo(16, -5);
-    ctx.stroke();
-    ctx.fillStyle = "#1d3b33";
-    ctx.beginPath();
-    ctx.ellipse(0, 2, 13, 10, 0, 0, U.TAU);
-    ctx.fill();
-    ctx.fillStyle = z.alert > 0.2 ? "#7dffcb" : "rgba(125,255,203,0.35)";
-    ctx.beginPath();
-    ctx.arc(0, 2, 4, 0, U.TAU);
-    ctx.fill();
-    var spin = time * 26 + z.phase;
-    ctx.strokeStyle = "rgba(190,255,230,0.5)";
-    ctx.lineWidth = 1.5;
-    for (var i = 0; i < 2; i++) {
-      var sx = i ? 16 : -16;
-      var rr = 8 * Math.abs(Math.cos(spin + i));
+
+    // Airborne rivals hang on a web of their own.
+    if (z.type !== "sentry") {
+      ctx.strokeStyle = "rgba(255,255,255,0.26)";
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.moveTo(sx - rr, -5);
-      ctx.lineTo(sx + rr, -5);
+      ctx.moveTo(0, -16);
+      ctx.lineTo(-z.vx * 0.05, -62 - Math.sin(time * 2 + z.phase) * 5);
       ctx.stroke();
     }
+
+    ctx.rotate(lean);
+    ctx.scale(face, 1);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    ctx.strokeStyle = RIVAL_CLOTH;
+    ctx.lineWidth = 4.5;
+    ctx.beginPath();
+    if (z.type === "sentry") {
+      ctx.moveTo(0, 4);
+      ctx.lineTo(-5, 16);
+      ctx.moveTo(0, 4);
+      ctx.lineTo(6, 16);
+    } else {
+      ctx.moveTo(0, 4);
+      ctx.lineTo(step * 8, 15);
+      ctx.moveTo(0, 4);
+      ctx.lineTo(-step * 8, 15);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = pal.suit;
+    ctx.lineWidth = 7.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -5);
+    ctx.lineTo(0, 5);
+    ctx.stroke();
+
+    ctx.strokeStyle = RIVAL_CLOTH;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(-3.5, -1.5);
+    ctx.lineTo(3.5, -1.5);
+    ctx.moveTo(-3.5, 2.5);
+    ctx.lineTo(3.5, 2.5);
+    ctx.stroke();
+
+    ctx.strokeStyle = pal.dark;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    if (winding) {
+      ctx.moveTo(0, -3);
+      ctx.lineTo(-11, -12);
+      ctx.moveTo(0, -3);
+      ctx.lineTo(9, 2);
+    } else if (moving) {
+      ctx.moveTo(0, -3);
+      ctx.lineTo(10, -6 + step * 4);
+      ctx.moveTo(0, -3);
+      ctx.lineTo(-9, 2 - step * 4);
+    } else {
+      ctx.moveTo(0, -3);
+      ctx.lineTo(9, 3);
+      ctx.moveTo(0, -3);
+      ctx.lineTo(-9, 3);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = pal.suit;
+    ctx.beginPath();
+    ctx.arc(0, -12, 6.5, 0, U.TAU);
+    ctx.fill();
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, -12, 6.5, 0, U.TAU);
+    ctx.clip();
+    ctx.fillStyle = RIVAL_CLOTH;
+    ctx.fillRect(-7, -17.5, 14, 2.2);
+    ctx.restore();
+
+    ctx.fillStyle = RIVAL_CLOTH;
+    ctx.beginPath();
+    ctx.ellipse(3, -12.5, 3, 2, -0.25, 0, U.TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(-2.4, -12.8, 2.2, 1.7, 0.25, 0, U.TAU);
+    ctx.fill();
+
     ctx.restore();
   }
 
@@ -534,10 +511,7 @@
         continue;
       }
       drawAlert(ctx, z, time);
-      if (z.type === "heli") drawHeli(ctx, z, time);
-      else if (z.type === "turret") drawTurret(ctx, z);
-      else if (z.type === "netter") drawNetter(ctx, z, time);
-      else drawDrone(ctx, z, time);
+      drawRival(ctx, z, time);
     }
     ctx.restore();
   };
