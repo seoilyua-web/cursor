@@ -142,7 +142,6 @@ function run(seed, seconds) {
     if (hz) player.hit(hz, game);
     const incoming = world.shotAt(player.pos.x, player.pos.y, C.PLAYER_R);
     if (incoming) player.hit(incoming, game);
-    world.clearance(player.pos.x, player.pos.y, C.PLAYER_R + C.GRAZE_DIST);
     world.update(dt, player.pos.x, player.pos.y);
     world.ensureUpTo(player.pos.x + 3000);
 

@@ -186,8 +186,6 @@
     challenges: [],
     lowTime: 0,
     lowAnnounced: false,
-    grazeBox: null,
-    grazeCd: 0,
     deliveries: 0,
     streak: 0,
     deathReason: "",
@@ -330,8 +328,6 @@
     };
     game.lowTime = 0;
     game.lowAnnounced = false;
-    game.grazeBox = null;
-    game.grazeCd = 0;
     game.swings = 0;
     game.deathReason = "";
     game.contract.state = "idle";
@@ -661,21 +657,6 @@
       game.lowAnnounced = false;
     }
 
-    game.grazeCd -= dt;
-    if (!fast || game.grazeCd > 0) return;
-    var near = game.world.clearance(
-      p.pos.x,
-      p.pos.y,
-      C.PLAYER_R + C.GRAZE_DIST
-    );
-    if (near.box && near.box !== game.grazeBox && near.dist > C.PLAYER_R + 1) {
-      game.grazeBox = near.box;
-      game.grazeCd = 0.5;
-      var pts = award("style", 70 * multiplier());
-      bumpCombo(1);
-      popup(p.pos.x, p.pos.y - 30, "ВПРИТИРКУ +" + pts);
-      SW.audio.ping(Math.min(game.combo, 12));
-    }
   }
 
   // ---------------------------------------------------------------------------

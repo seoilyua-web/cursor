@@ -133,7 +133,6 @@
       DASH_COOLDOWN: 7,
       STUN_TIME: 0.45,
       LOW_ALTITUDE: 170,
-      GRAZE_DIST: 34,
       WEB_SHOT_R: 13,
       WEB_SHOT_CD: 0.22,
       WEB_SHOT_LIFE: 0.75,

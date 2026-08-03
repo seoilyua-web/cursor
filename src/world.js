@@ -860,7 +860,7 @@
     return null;
   };
 
-  /** Distance to the closest hard surface, capped at `max`. Used for grazes. */
+  /** Distance to the closest hard surface, capped at `max`. */
   World.prototype.clearance = function (x, y, max) {
     var list = this.near(x - max, x + max, _scratch);
     var best = max;
