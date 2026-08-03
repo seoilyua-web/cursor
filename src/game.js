@@ -434,7 +434,6 @@
 
   game.onAttach = function () {
     SW.audio.thwip();
-    burst(game.player.anchor.x, game.player.anchor.y, 7, "#eaf6ff", 160);
     if (!game.hinted) {
       game.hinted = true;
       el.hint.classList.add("faded");
@@ -448,19 +447,13 @@
   game.onLand = function (impact) {
     game.chain = 0;
     SW.audio.thud();
-    var n = 6 + U.clamp((impact || 0) / (120 * C.PACE), 0, 10);
-    burst(game.player.pos.x, game.player.pos.y + C.PLAYER_R, n, "#a9b6ff", 120);
     game.cam.shake = Math.max(game.cam.shake, U.clamp((impact || 0) / (90 * C.PACE), 0, 9));
   };
 
-  game.onJump = function () {
-    burst(game.player.pos.x, game.player.pos.y + C.PLAYER_R, 5, "#8fa0ff", 110);
-  };
+  game.onJump = function () {};
 
   game.onKick = function (x, y, nx, power) {
     SW.audio.kick();
-    burst(x, y, 10, "#cfe0ff", 190 * C.PACE);
-    ring(x, y, "rgba(200,225,255,0.85)");
     game.cam.shake = Math.max(game.cam.shake, 6);
   };
 
@@ -501,13 +494,10 @@
     popup(game.player.pos.x, game.player.pos.y - 34, "В СЕТИ", true);
   };
 
-  game.onTetherBreak = function () {
-    burst(game.player.pos.x, game.player.pos.y, 9, "#dfe8ff", 200 * C.PACE);
-  };
+  game.onTetherBreak = function () {};
 
   game.onScrape = function (x, y, impact) {
     game.chain = 0;
-    burst(x, y, 3, "#ffd08a", (90 + impact * 0.2) * C.PACE);
     game.cam.shake = Math.max(game.cam.shake, U.clamp(impact / (140 * C.PACE), 0, 7));
   };
 
