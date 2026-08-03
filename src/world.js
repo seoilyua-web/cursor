@@ -22,6 +22,8 @@
   var LEVELS = [
     {
       id: "centre",
+      accent: "#ff3b6b",
+      accent2: "#43e5ff",
       quota: 3,
       length: 1000,
       par: 115,
@@ -42,12 +44,13 @@
       sky: ["#080a1c", "#2a1b48", "#6b2f52", "#c2603f"],
       far: "rgba(24,26,58,0.85)",
       mid: "rgba(15,17,42,0.92)",
-      accent: "#ff3b6b",
       neon: ["#ff3b6b", "#43e5ff", "#ffb03a"],
       words: ["ОФИС", "БАНК", "24 ЧАСА", "КОФЕ", "БИРЖА"],
     },
     {
       id: "industrial",
+      accent: "#ffb03a",
+      accent2: "#3ee08f",
       quota: 3,
       length: 950,
       par: 120,
@@ -69,12 +72,13 @@
       sky: ["#050a12", "#123043", "#2f5b5c", "#9e7a3c"],
       far: "rgba(18,34,40,0.85)",
       mid: "rgba(9,20,26,0.92)",
-      accent: "#ffb03a",
       neon: ["#ffb03a", "#7dffcb", "#ff6a3d"],
       words: ["ЦЕХ 4", "СКЛАД", "ГРУЗ", "ТЭЦ", "ВЪЕЗД"],
     },
     {
       id: "residential",
+      accent: "#8b5cff",
+      accent2: "#43e5ff",
       quota: 4,
       length: 1200,
       par: 130,
@@ -96,12 +100,13 @@
       sky: ["#060814", "#1c1f4a", "#3f3b78", "#7d5f9c"],
       far: "rgba(26,28,64,0.85)",
       mid: "rgba(14,16,40,0.92)",
-      accent: "#8b5cff",
       neon: ["#8b5cff", "#43e5ff", "#ff8ab0"],
       words: ["ПРОДУКТЫ", "АПТЕКА", "ПИЦЦА", "САЛОН", "24"],
     },
     {
       id: "oldtown",
+      accent: "#ff7a3a",
+      accent2: "#ffd36b",
       quota: 4,
       length: 1000,
       par: 120,
@@ -123,12 +128,13 @@
       sky: ["#0b0714", "#3a1d34", "#7d3b3a", "#d08243"],
       far: "rgba(42,28,46,0.85)",
       mid: "rgba(24,15,28,0.92)",
-      accent: "#ff9f4a",
       neon: ["#ff9f4a", "#ffd76a", "#ff5a7a"],
       words: ["ТРАКТИРЪ", "ЛАВКА", "ЧАЙ", "ТЕАТРЪ", "БАНЯ"],
     },
     {
       id: "skyline",
+      accent: "#43e5ff",
+      accent2: "#7f9fff",
       quota: 3,
       length: 1000,
       par: 115,
@@ -150,12 +156,13 @@
       sky: ["#04060f", "#101b3e", "#2b3f6e", "#5d7bb0"],
       far: "rgba(18,24,52,0.85)",
       mid: "rgba(10,14,34,0.92)",
-      accent: "#43e5ff",
       neon: ["#43e5ff", "#8b5cff", "#eaf6ff"],
       words: ["SKY", "ОБЛАКО", "ЛИФТ", "ВЫШЕ", "ЭФИР"],
     },
     {
       id: "site",
+      accent: "#ffc61a",
+      accent2: "#ff6a3d",
       quota: 3,
       length: 950,
       par: 115,
@@ -178,7 +185,6 @@
       sky: ["#0a0810", "#2a2038", "#6b4a3a", "#c98a4a"],
       far: "rgba(34,28,26,0.85)",
       mid: "rgba(18,15,16,0.92)",
-      accent: "#ffc46b",
       neon: ["#ffc46b", "#ff6a3d", "#7dffcb"],
       words: ["СТРОЙ", "ОПАСНО", "КАСКА", "БЕТОН", "СМЕНА"],
     },
@@ -654,6 +660,46 @@
     return out;
   };
 
+  /**
+   * Neon on the facade. Decoration only — it carries no collision box, so the
+   * lighting pass cannot quietly change where the courier may land or stick.
+   */
+  World.prototype._neon = function (b, level) {
+    var rng = this.rng;
+    var count = rng.int(1, b.h > 500 ? 3 : 2);
+    for (var i = 0; i < count; i++) {
+      var vertical = b.h > 320 && rng.chance(0.55);
+      var hue = rng.chance(0.5) ? level.accent : level.accent2;
+      if (vertical) {
+        var vh = Math.min(b.h * 0.5, rng.range(120, 300));
+        this.props.push({
+          type: "neon",
+          vertical: true,
+          x: rng.chance(0.5) ? b.x + 7 : b.x + b.w - 21,
+          y: b.top + rng.range(30, Math.max(40, b.h - vh - 40)),
+          w: 14,
+          h: vh,
+          hue: hue,
+          glyphs: rng.int(3, 6),
+          seed: rng.range(0, 100),
+        });
+      } else {
+        var nw = Math.min(b.w - 24, rng.range(60, 150));
+        this.props.push({
+          type: "neon",
+          vertical: false,
+          x: b.x + rng.range(12, Math.max(14, b.w - nw - 12)),
+          y: b.top + rng.range(40, Math.max(50, b.h - 90)),
+          w: nw,
+          h: rng.range(22, 34),
+          hue: hue,
+          glyphs: rng.int(2, 4),
+          seed: rng.range(0, 100),
+        });
+      }
+    }
+  };
+
   World.prototype._crane = function (b) {
     var rng = this.rng;
     var mastH = rng.range(170, 320);
@@ -1055,6 +1101,8 @@
 
       if (b.h > 220 && rng.chance(0.55)) this._neonSign(b);
 
+      if (rng.chance(0.75)) this._neon(b, level);
+
       // Facade scaffolding and a tethered balloon do not crowd the roof line.
       if (level.scaffold && rng.chance(level.scaffold)) this._scaffold(b);
       if (level.balloon && roofKind !== "crane" && rng.chance(level.balloon)) {
@@ -1106,7 +1154,9 @@
     for (i = this.props.length - 1; i >= 0; i--) {
       var p = this.props[i];
       var right =
-        p.type === "wire"
+        p.type === "neon"
+          ? p.x + p.w
+          : p.type === "wire"
           ? p.x1
           : p.type === "blimp" || p.type === "balloon"
           ? p.x + p.rx

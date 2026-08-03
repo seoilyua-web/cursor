@@ -7,6 +7,8 @@
 
   var canvas = document.getElementById("game");
   var ctx = canvas.getContext("2d");
+  var sceneCv = null;
+  var sceneCtx = null;
 
   var el = {
     hud: document.getElementById("hud"),
@@ -298,6 +300,16 @@
     game.view.w = w;
     game.view.h = h;
     game.view.dpr = dpr;
+    var pw = Math.floor(w * dpr);
+    var ph = Math.floor(h * dpr);
+    if (!sceneCv) {
+      sceneCv = document.createElement("canvas");
+      sceneCtx = sceneCv.getContext("2d");
+    }
+    if (sceneCv.width !== pw || sceneCv.height !== ph) {
+      sceneCv.width = pw;
+      sceneCv.height = ph;
+    }
     if (!game.aim.sx) {
       game.aim.sx = w * 0.62;
       game.aim.sy = h * 0.28;
@@ -1395,64 +1407,76 @@
   function draw() {
     var w = game.view.w;
     var h = game.view.h;
+    var dpr = game.view.dpr;
     var cam = game.cam;
     var p = game.player;
     var sp = p.speed();
     var intensity = U.clamp((sp - 900 * C.PACE) / (1600 * C.PACE), 0, 1);
     var district = game.world.districtAt();
+    var sky = SW.Render.palette(district);
+    var accent = district.def.accent || "#ff3b6b";
 
-    ctx.setTransform(game.view.dpr, 0, 0, game.view.dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-
-    SW.Render.accent = district.def.accent || "#ff3b6b";
+    SW.Render.accent = accent;
     SW.Render.wet = settings.weather ? game.world.weather.rain : 0;
-    SW.Render.sky(ctx, cam, w, h, SW.Render.palette(district));
-    SW.Render.stars(ctx, cam, w, h);
-    SW.Render.parallax(ctx, cam, w, h, district);
-    SW.Render.ground(ctx, cam, w, h, game.time);
+
+    var sctx = sceneCtx;
+    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sctx.clearRect(0, 0, w, h);
+
+    SW.Render.sky(sctx, cam, w, h, sky);
+    SW.Render.stars(sctx, cam, w, h);
+    SW.Render.parallax(sctx, cam, w, h, district);
+    SW.Render.ground(sctx, cam, w, h, game.time);
 
     var shakeAmt = settings.calm ? 0 : cam.shake;
     var shakeX = (Math.random() - 0.5) * shakeAmt;
     var shakeY = (Math.random() - 0.5) * shakeAmt;
 
-    ctx.save();
-    ctx.translate(w / 2 + shakeX, h / 2 + shakeY);
-    ctx.scale(cam.zoom, cam.zoom);
-    ctx.translate(-cam.x, -cam.y);
+    sctx.save();
+    sctx.translate(w / 2 + shakeX, h / 2 + shakeY);
+    sctx.scale(cam.zoom, cam.zoom);
+    sctx.translate(-cam.x, -cam.y);
 
-    SW.Render.buildings(ctx, game.world, cam, w);
-    SW.Render.props(ctx, game.world, cam, w, game.time);
-    SW.Render.pizzas(ctx, game.world, cam, w, game.time);
-    SW.Render.hazards(ctx, game.world, cam, w, game.time);
-    SW.Render.enemyShots(ctx, game.world.shots);
-    SW.Render.webShots(ctx, game.webShots);
+    SW.Render.buildings(sctx, game.world, cam, w);
+    SW.Render.props(sctx, game.world, cam, w, game.time);
+    SW.Render.pizzas(sctx, game.world, cam, w, game.time);
+    SW.Render.hazards(sctx, game.world, cam, w, game.time);
+    SW.Render.enemyShots(sctx, game.world.shots);
+    SW.Render.webShots(sctx, game.webShots);
     if (game.targetEnemy && game.state === "playing") {
-      SW.Render.target(ctx, game.targetEnemy, game.time);
+      SW.Render.target(sctx, game.targetEnemy, game.time);
     }
 
     if (game.state === "playing" && !p.dead) {
-      SW.Render.aim(ctx, p, game.world, game.aim, game.aimHit);
+      SW.Render.aim(sctx, p, game.world, game.aim, game.aimHit);
     }
-    SW.Render.contract(ctx, game.contract, game.time);
-    SW.Render.rescue(ctx, game.rescue, game.time);
+    SW.Render.contract(sctx, game.contract, game.time);
+    SW.Render.rescue(sctx, game.rescue, game.time);
     if (game.state !== "menu" && game.state !== "settings") {
-      SW.Render.tether(ctx, p);
+      SW.Render.tether(sctx, p);
     }
     if (game.ghost && game.state === "playing") {
       SW.Render.ghost(
-        ctx,
+        sctx,
         game.ghost[game.ghostIndex],
         game.ghost[game.ghostIndex + 1]
       );
     }
-    SW.Render.trail(ctx, game.trail);
+    SW.Render.trail(sctx, game.trail);
     if (game.state !== "menu" && game.state !== "settings") {
-      SW.Render.web(ctx, p);
-      SW.Render.particles(ctx, game.particles);
-      p.draw(ctx);
+      SW.Render.web(sctx, p);
+      SW.Render.particles(sctx, game.particles);
+      p.draw(sctx);
     }
 
-    ctx.restore();
+    sctx.restore();
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(sceneCv, 0, 0, w, h);
+    if (SW.Render.quality > 0) {
+      SW.Render.bloom(ctx, sceneCv, w, h, 0.52);
+    }
 
     if (settings.weather) {
       SW.Render.weather(ctx, cam, w, h, game.world.weather, game.time);

@@ -914,12 +914,30 @@
     if (ctx.roundRect) ctx.roundRect(-4.6, -15.6, 9.4, 4.4, 2);
     else ctx.rect(-4.6, -15.6, 9.4, 4.4);
     ctx.fill();
+    if (SW.Render && SW.Render.quality > 0) {
+      var vg = ctx.createRadialGradient(0, -13.4, 1, 0, -13.4, 18);
+      vg.addColorStop(0, status);
+      vg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.28 * lit;
+      ctx.fillStyle = vg;
+      ctx.beginPath();
+      ctx.arc(0, -13.4, 18, 0, U.TAU);
+      ctx.fill();
+      ctx.restore();
+    }
     ctx.globalAlpha = lit;
     ctx.fillStyle = status;
+    if (SW.Render && SW.Render.quality > 0) {
+      ctx.shadowColor = status;
+      ctx.shadowBlur = 14;
+    }
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(-3.4, -14.8, 7, 2.6, 1.3);
     else ctx.rect(-3.4, -14.8, 7, 2.6);
     ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
 
     ctx.restore();

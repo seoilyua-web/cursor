@@ -164,8 +164,16 @@
     ctx.fillStyle = g;
     ctx.fillRect(0, y - 60 * cam.zoom, w, h - y + 60 * cam.zoom);
 
-    ctx.fillStyle = "rgba(255,120,90,0.5)";
-    ctx.fillRect(0, y, w, Math.max(1, 2 * cam.zoom));
+    ctx.fillStyle = "rgba(255,120,90,0.65)";
+    ctx.fillRect(0, y, w, Math.max(1, 3 * cam.zoom));
+
+    if (Render.quality > 0 && Render.wet > 0.04) {
+      var wet = ctx.createLinearGradient(0, y, 0, y + 120 * cam.zoom);
+      wet.addColorStop(0, "rgba(120,180,255," + (0.08 * Render.wet).toFixed(3) + ")");
+      wet.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = wet;
+      ctx.fillRect(0, y, w, 120 * cam.zoom);
+    }
 
     if (Render.quality > 0) drawTraffic(ctx, cam, w, h, y, time || 0);
 
@@ -208,17 +216,20 @@
       // Neon rim: the layer you can actually touch always carries light.
       ctx.save();
       ctx.strokeStyle = Render.accent;
-      ctx.globalAlpha = 0.75;
-      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = 2.4;
       if (Render.quality > 0) {
         ctx.shadowColor = Render.accent;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 14;
       }
       ctx.beginPath();
       ctx.moveTo(b.x, b.top + 1);
       ctx.lineTo(b.x + b.w, b.top + 1);
       ctx.stroke();
-      ctx.globalAlpha = 0.35;
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 0.42;
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(b.x + 1, b.top);
       ctx.lineTo(b.x + 1, b.top + Math.min(b.h, 220));
@@ -524,93 +535,163 @@
     ctx.stroke();
   }
 
-  function drawNeon(ctx, p, time) {
-    // Measure once: the box has to fit the actual glyphs, not a guess.
-    if (!p.measured) {
-      ctx.save();
-      ctx.font = "700 " + p.size.toFixed(0) + "px Inter, system-ui, sans-serif";
-      if (p.vertical) {
-        var widest = 0;
-        for (var q = 0; q < p.word.length; q++) {
-          widest = Math.max(widest, ctx.measureText(p.word[q]).width);
-        }
-        p.w = widest + 14;
-        p.h = p.word.length * p.size * 1.02 + 12;
-      } else {
-        p.w = ctx.measureText(p.word).width + 16;
-        p.h = p.size * 1.35 + 10;
-      }
-      ctx.restore();
-      p.measured = true;
-    }
+  /** Spill light behind a neon tube — bright enough for the bloom pass. */
+  function neonSpill(ctx, cx, cy, radius, hue, alpha) {
+    if (Render.quality <= 0 || alpha <= 0) return;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    var g = ctx.createRadialGradient(cx, cy, 1, cx, cy, radius);
+    g.addColorStop(0, hue);
+    g.addColorStop(0.45, hue);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, U.TAU);
+    ctx.fill();
+    ctx.restore();
+  }
 
+  /** Wet-street smear under a bright sign. */
+  function neonReflection(ctx, p, flick) {
+    if (Render.quality <= 0 || Render.wet <= 0.02) return;
+    var cx = p.x + p.w / 2;
+    var refl = ctx.createLinearGradient(cx, C.GROUND_Y - 140, cx, C.GROUND_Y + 80);
+    refl.addColorStop(0, "rgba(0,0,0,0)");
+    refl.addColorStop(0.55, p.hue);
+    refl.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.22 * Render.wet * flick;
+    ctx.fillStyle = refl;
+    ctx.fillRect(cx - p.w * 0.9, C.GROUND_Y - 140, p.w * 1.8, 220);
+    ctx.restore();
+  }
+
+  function drawNeon(ctx, p, time) {
+    var phase = p.phase != null ? p.phase : p.seed || 0;
     var flick = p.broken
-      ? 0.35 + 0.65 * (Math.sin(time * 17 + p.phase) > 0.2 ? 1 : 0.25)
-      : 0.82 + Math.sin(time * 3.1 + p.phase) * 0.12;
+      ? 0.35 + 0.65 * (Math.sin(time * 17 + phase) > 0.2 ? 1 : 0.25)
+      : p.word
+      ? 0.82 + Math.sin(time * 3.1 + phase) * 0.12
+      : Math.sin(time * (3 + (p.seed || 0) * 0.05) + (p.seed || 0)) > -0.92
+      ? 0.85 + Math.sin(time * 24 + (p.seed || 0)) * 0.08
+      : 0.25;
 
     ctx.save();
     ctx.globalAlpha = flick;
+    ctx.lineCap = "round";
 
-    // Dark plate so the tubes read against lit windows.
-    ctx.fillStyle = "rgba(6,8,18,0.72)";
-    ctx.fillRect(p.x, p.y, p.w, p.h);
-    ctx.strokeStyle = p.hue;
-    ctx.lineWidth = 2;
-    if (Render.quality > 0) {
-      ctx.shadowColor = p.hue;
-      ctx.shadowBlur = 14;
-    }
-    ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
-
-    ctx.font = "700 " + p.size.toFixed(0) + "px Inter, system-ui, sans-serif";
-    ctx.fillStyle = "#ffffff";
-    ctx.textBaseline = "middle";
-    if (p.vertical) {
-      ctx.textAlign = "center";
-      for (var i = 0; i < p.word.length; i++) {
-        ctx.fillText(
-          p.word[i],
-          p.x + p.w / 2,
-          p.y + 8 + p.size * 0.5 + i * p.size * 1.02
-        );
+    if (p.word) {
+      if (!p.measured) {
+        ctx.save();
+        ctx.font = "700 " + p.size.toFixed(0) + "px Inter, system-ui, sans-serif";
+        if (p.vertical) {
+          var widest = 0;
+          for (var q = 0; q < p.word.length; q++) {
+            widest = Math.max(widest, ctx.measureText(p.word[q]).width);
+          }
+          p.w = widest + 14;
+          p.h = p.word.length * p.size * 1.02 + 12;
+        } else {
+          p.w = ctx.measureText(p.word).width + 16;
+          p.h = p.size * 1.35 + 10;
+        }
+        ctx.restore();
+        p.measured = true;
       }
-    } else {
+
+      neonSpill(
+        ctx,
+        p.x + p.w / 2,
+        p.y + p.h / 2,
+        Math.max(p.w, p.h) * 2.1,
+        p.hue,
+        0.2 * flick
+      );
+
+      ctx.fillStyle = "rgba(4,6,16,0.78)";
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.strokeStyle = p.hue;
+      ctx.lineWidth = 2.2;
+      if (Render.quality > 0) {
+        ctx.shadowColor = p.hue;
+        ctx.shadowBlur = 18;
+      }
+      ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
+
+      ctx.font = "700 " + p.size.toFixed(0) + "px Inter, system-ui, sans-serif";
+      ctx.textBaseline = "middle";
       ctx.textAlign = "center";
-      ctx.fillText(p.word, p.x + p.w / 2, p.y + p.h / 2 + 1);
-    }
-    ctx.shadowBlur = 0;
-
-    // Reflection smeared down the wet street.
-    if (Render.quality > 0 && Render.wet > 0.02) {
-      var refl = ctx.createLinearGradient(0, C.GROUND_Y - 120, 0, C.GROUND_Y + 90);
-      refl.addColorStop(0, "rgba(0,0,0,0)");
-      refl.addColorStop(1, p.hue);
-      ctx.globalAlpha = 0.18 * Render.wet * flick;
-      ctx.fillStyle = refl;
-      ctx.fillRect(p.x - p.w * 0.4, C.GROUND_Y - 120, p.w * 1.8, 210);
-      ctx.globalAlpha = flick;
-    }
-
-    // Light spilling onto the wall behind the tubes.
-    if (Render.quality > 0) {
-      var g = ctx.createRadialGradient(
+      ctx.fillStyle = p.hue;
+      if (p.vertical) {
+        for (var i = 0; i < p.word.length; i++) {
+          ctx.fillText(
+            p.word[i],
+            p.x + p.w / 2,
+            p.y + 8 + p.size * 0.5 + i * p.size * 1.02
+          );
+        }
+      } else {
+        ctx.fillText(p.word, p.x + p.w / 2, p.y + p.h / 2 + 1);
+      }
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = flick * 0.95;
+      ctx.fillStyle = "#ffffff";
+      if (p.vertical) {
+        for (var j = 0; j < p.word.length; j++) {
+          ctx.fillText(
+            p.word[j],
+            p.x + p.w / 2,
+            p.y + 8 + p.size * 0.5 + j * p.size * 1.02
+          );
+        }
+      } else {
+        ctx.fillText(p.word, p.x + p.w / 2, p.y + p.h / 2 + 1);
+      }
+      neonReflection(ctx, p, flick);
+    } else {
+      neonSpill(
+        ctx,
         p.x + p.w / 2,
         p.y + p.h / 2,
-        4,
-        p.x + p.w / 2,
-        p.y + p.h / 2,
-        Math.max(p.w, p.h) * 1.9
+        Math.max(p.w, p.h) * 1.35,
+        p.hue,
+        0.16 * flick
       );
-      g.addColorStop(0, p.hue);
-      g.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.globalAlpha = 0.16 * flick;
-      ctx.fillStyle = g;
-      ctx.fillRect(
-        p.x - p.w * 2,
-        p.y - p.h * 2,
-        p.w * 5,
-        p.h * 5
-      );
+
+      ctx.strokeStyle = p.hue;
+      ctx.lineWidth = 2.4;
+      if (Render.quality > 0) {
+        ctx.shadowColor = p.hue;
+        ctx.shadowBlur = 16;
+      }
+      ctx.strokeRect(p.x, p.y, p.w, p.h);
+      ctx.shadowBlur = 0;
+
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.2;
+      ctx.globalAlpha = flick * 0.9;
+      ctx.beginPath();
+      if (p.vertical) {
+        var step = p.h / (p.glyphs + 0.5);
+        for (var vi = 0; vi < p.glyphs; vi++) {
+          var gy = p.y + step * (vi + 0.6);
+          ctx.moveTo(p.x + 4, gy);
+          ctx.lineTo(p.x + p.w - 4, gy);
+        }
+      } else {
+        var sw = p.w / (p.glyphs + 0.6);
+        for (var k = 0; k < p.glyphs; k++) {
+          var gx = p.x + sw * (k + 0.4);
+          ctx.moveTo(gx, p.y + 6);
+          ctx.lineTo(gx, p.y + p.h - 6);
+          ctx.moveTo(gx, p.y + p.h / 2);
+          ctx.lineTo(gx + sw * 0.5, p.y + p.h / 2);
+        }
+      }
+      ctx.stroke();
+      neonReflection(ctx, p, flick);
     }
     ctx.restore();
   }
@@ -1213,9 +1294,13 @@
       var a = trail[i - 1];
       var b = trail[i];
       var t = i / trail.length;
-      ctx.globalAlpha = t * 0.34;
-      ctx.lineWidth = 1 + t * 7;
-      ctx.strokeStyle = "rgba(255,120,150,1)";
+      ctx.globalAlpha = t * 0.42;
+      ctx.lineWidth = 1 + t * 8;
+      ctx.strokeStyle = Render.accent;
+      if (Render.quality > 0) {
+        ctx.shadowColor = Render.accent;
+        ctx.shadowBlur = 10;
+      }
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
@@ -1262,11 +1347,11 @@
     var mx = (hand.x + ex) / 2;
     var my = (hand.y + ey) / 2 + Math.min(slack * 0.45, 60);
 
-    ctx.strokeStyle = "rgba(255,255,255,0.9)";
-    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.lineWidth = 2.4;
     if (Render.quality > 0) {
-      ctx.shadowColor = "rgba(160,220,255,0.7)";
-      ctx.shadowBlur = 8;
+      ctx.shadowColor = "rgba(160,220,255,0.95)";
+      ctx.shadowBlur = 14;
     }
     ctx.beginPath();
     ctx.moveTo(hand.x, hand.y);
@@ -1363,7 +1448,11 @@
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = strength;
-    if ("filter" in ctx) ctx.filter = "blur(7px)";
+    if ("filter" in ctx) ctx.filter = "blur(9px)";
+    ctx.drawImage(bloomCv, 0, 0, w, h);
+    if ("filter" in ctx) ctx.filter = "none";
+    ctx.globalAlpha = strength * 0.42;
+    if ("filter" in ctx) ctx.filter = "blur(18px)";
     ctx.drawImage(bloomCv, 0, 0, w, h);
     if ("filter" in ctx) ctx.filter = "none";
     ctx.restore();
