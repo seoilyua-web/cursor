@@ -6,7 +6,7 @@
   var C = SW.CONST;
 
   var HIGH_ANCHOR = 760; // height above the street that always stays reachable
-  var DISTRICT_LEN = 3400;
+  var WEATHER_LEN = 3400;
 
   var SIGN_HUES = ["#ff3b6b", "#43e5ff", "#ffb03a", "#8b5cff", "#3ee08f"];
 
@@ -14,18 +14,24 @@
    * Districts change both the skyline geometry and the palette, so the tactics
    * change with them: towers give short arcs, the outskirts force long ones.
    */
-  var DISTRICTS = [
+  /**
+   * Levels are whole maps, not stretches of one endless city: each one fixes
+   * the architecture, the set of things worth shooting a web at, and the
+   * palette. `props` are probabilities per block.
+   */
+  var LEVELS = [
     {
       id: "centre",
       name: "Деловой центр",
+      hint: "Башни и мачты. Учебная смена: дуги короткие, зацепов много.",
+      seed: 10427,
       w: [130, 235],
       h: [420, 780],
       tower: [820, 1250],
       towerChance: 0.3,
       gap: [210, 400],
-      crane: 0.2,
-      sign: 0.4,
-      wire: 0.4,
+      setback: 0.45,
+      props: { crane: 0.14, sign: 0.4, wire: 0.4, mast: 0.85, blimp: 1 },
       facades: [
         ["#1b2540", "#0d1428"],
         ["#232041", "#100e26"],
@@ -37,14 +43,16 @@
     {
       id: "industrial",
       name: "Промзона",
-      w: [170, 320],
-      h: [170, 360],
-      tower: [520, 760],
-      towerChance: 0.14,
-      gap: [320, 580],
-      crane: 0.6,
-      sign: 0.1,
-      wire: 0.75,
+      hint: "Низкие корпуса, широкие провалы. Держат трубы и стрелы кранов.",
+      seed: 20521,
+      w: [190, 340],
+      h: [150, 320],
+      tower: [430, 680],
+      towerChance: 0.18,
+      gap: [320, 540],
+      setback: 0,
+      chimney: 0.75,
+      props: { crane: 0.7, sign: 0.08, wire: 0.7, mast: 0.35, blimp: 1 },
       facades: [
         ["#1c2b2e", "#0b1417"],
         ["#26261f", "#111109"],
@@ -56,14 +64,16 @@
     {
       id: "residential",
       name: "Спальный район",
-      w: [120, 210],
-      h: [200, 350],
-      tower: [430, 600],
-      towerChance: 0.12,
-      gap: [270, 470],
-      crane: 0.14,
-      sign: 0.2,
-      wire: 0.85,
+      hint: "Ровные панельки. Выручают только тросы и аэростаты.",
+      seed: 31337,
+      w: [130, 210],
+      h: [190, 330],
+      tower: [400, 520],
+      towerChance: 0.08,
+      gap: [280, 480],
+      setback: 0,
+      balloon: 0.5,
+      props: { crane: 0.06, sign: 0.18, wire: 0.9, mast: 0.5, blimp: 0.6 },
       facades: [
         ["#1e2440", "#0e1024"],
         ["#242a4a", "#12142c"],
@@ -75,14 +85,16 @@
     {
       id: "oldtown",
       name: "Старый город",
-      w: [95, 170],
+      hint: "Узкие дома и шпили. Всё близко, ошибаться некогда.",
+      seed: 44011,
+      w: [95, 165],
       h: [250, 430],
       tower: [520, 800],
       towerChance: 0.22,
-      gap: [180, 320],
-      crane: 0.1,
-      sign: 0.45,
-      wire: 0.7,
+      gap: [170, 300],
+      setback: 0.2,
+      spire: 0.8,
+      props: { crane: 0.05, sign: 0.45, wire: 0.75, mast: 0.3, blimp: 1.4 },
       facades: [
         ["#2f2333", "#170f1c"],
         ["#33261f", "#180f0c"],
@@ -90,6 +102,49 @@
       sky: ["#0b0714", "#3a1d34", "#7d3b3a", "#d08243"],
       far: "rgba(42,28,46,0.85)",
       mid: "rgba(24,15,28,0.92)",
+    },
+    {
+      id: "skyline",
+      name: "Небесный квартал",
+      hint: "Сверхвысотки, связанные переходами. Мост — и опора, и якорь.",
+      seed: 51199,
+      w: [150, 250],
+      h: [700, 1150],
+      tower: [1150, 1600],
+      towerChance: 0.4,
+      gap: [260, 460],
+      setback: 0.6,
+      bridge: 0.75,
+      props: { crane: 0.08, sign: 0.3, wire: 0.25, mast: 0.9, blimp: 0.5 },
+      facades: [
+        ["#16233f", "#0a1020"],
+        ["#1d2a4d", "#0c1226"],
+      ],
+      sky: ["#04060f", "#101b3e", "#2b3f6e", "#5d7bb0"],
+      far: "rgba(18,24,52,0.85)",
+      mid: "rgba(10,14,34,0.92)",
+    },
+    {
+      id: "site",
+      name: "Стройка",
+      hint: "Каркасы и леса. Цепляться можно почти везде, падать — тоже.",
+      seed: 60077,
+      w: [140, 260],
+      h: [230, 620],
+      tower: [640, 900],
+      towerChance: 0.25,
+      gap: [260, 520],
+      setback: 0.3,
+      scaffold: 0.7,
+      chimney: 0.2,
+      props: { crane: 0.85, sign: 0.1, wire: 0.5, mast: 0.5, blimp: 1.2 },
+      facades: [
+        ["#2a2418", "#141008"],
+        ["#232a2c", "#0e1214"],
+      ],
+      sky: ["#0a0810", "#2a2038", "#6b4a3a", "#c98a4a"],
+      far: "rgba(34,28,26,0.85)",
+      mid: "rgba(18,15,16,0.92)",
     },
   ];
 
@@ -174,11 +229,13 @@
     this.weather = { wind: 0, rain: 0, fog: 0 };
     this.target = { wind: 0, rain: 0, fog: 0 };
     this.districtIndex = 0;
+    this.levelIndex = 0;
     this.hazardsOn = true;
     this.weatherOn = true;
   }
 
-  World.prototype.reset = function (seed) {
+  World.prototype.reset = function (seed, levelIndex) {
+    this.levelIndex = U.clamp(levelIndex || 0, 0, LEVELS.length - 1);
     this.rng = new U.Rng(seed);
     this.buildings.length = 0;
     this.props.length = 0;
@@ -206,16 +263,10 @@
   // ---------------------------------------------------------------------------
 
   /** Index of the district at world position x, plus the blend into the next. */
-  World.prototype.districtAt = function (x) {
-    var raw = (x - this.startX) / DISTRICT_LEN;
-    var i = Math.floor(Math.max(0, raw));
-    var frac = Math.max(0, raw) - i;
-    return {
-      def: DISTRICTS[i % DISTRICTS.length],
-      next: DISTRICTS[(i + 1) % DISTRICTS.length],
-      blend: U.clamp((frac - 0.82) / 0.18, 0, 1),
-      index: i,
-    };
+  /** The level's theme, in the shape the renderer already expects. */
+  World.prototype.districtAt = function () {
+    var def = LEVELS[this.levelIndex] || LEVELS[0];
+    return { def: def, next: def, blend: 0, index: this.levelIndex };
   };
 
   World.prototype._rollWeather = function (index) {
@@ -226,7 +277,7 @@
       return;
     }
     var rng = new U.Rng((index + 1) * 9176 + this.id);
-    var def = DISTRICTS[index % DISTRICTS.length];
+    var def = LEVELS[this.levelIndex] || LEVELS[0];
     var gusty = def.id === "industrial" || def.id === "residential";
     this.target.wind = rng.chance(gusty ? 0.75 : 0.45)
       ? rng.range(-1, 1) * (gusty ? 1 : 0.6)
@@ -236,10 +287,12 @@
   };
 
   World.prototype.update = function (dt, playerX) {
-    var d = this.districtAt(playerX);
-    if (d.index !== this.districtIndex) {
-      this.districtIndex = d.index;
-      this._rollWeather(d.index);
+    this.time = (this.time || 0) + dt;
+    // Weather rolls over as the run goes, but the architecture stays the level's.
+    var band = Math.floor(Math.max(0, playerX - this.startX) / WEATHER_LEN);
+    if (band !== this.districtIndex) {
+      this.districtIndex = band;
+      this._rollWeather(band);
     }
     var w = this.weather;
     w.wind = U.damp(w.wind, this.target.wind, 0.7, dt);
@@ -249,6 +302,10 @@
     for (var i = 0; i < this.props.length; i++) {
       var p = this.props[i];
       if (p.type === "blimp") p.x += p.vx * dt;
+      else if (p.type === "balloon") {
+        p.y = p.baseY - p.len + Math.sin(p.phase + this.time * 0.6) * 8;
+        p.drift = Math.sin(this.time * 0.5 + p.phase) * p.sway;
+      }
       else if (p.type === "crane" && p.load) {
         // Pendulum load: θ'' = -(g / L) sin θ, nudged by the wind.
         var g = C.GRAVITY;
@@ -490,7 +547,7 @@
 
   World.prototype._push = function (w, h, isStart, forceMast) {
     var rng = this.rng;
-    var district = this.districtAt(this.nextX).def;
+    var level = LEVELS[this.levelIndex];
     var b = {
       id: this.id++,
       x: this.nextX,
@@ -500,12 +557,28 @@
       antennaH: 0,
       ax: 0,
     };
-    if (forceMast || (h > 560 ? rng.chance(0.9) : rng.chance(0.6))) {
+    var mastChance = (LEVELS[this.levelIndex].props.mast || 0.6) * (h > 560 ? 1.4 : 1);
+    if (forceMast || rng.chance(mastChance)) {
       b.antennaH = h > 560 ? rng.range(140, 280) : rng.range(90, 210);
       if (forceMast) b.antennaH = Math.max(b.antennaH, HIGH_ANCHOR - h + 40);
     }
     b.ax = b.x + b.w * rng.range(0.25, 0.75);
-    b.sprite = buildSprite(b, rng, district);
+    b.sprite = buildSprite(b, rng, level);
+    b.setbacks = [];
+    // Stepped tops give extra ledges to land on and to swing around.
+    if (level.setback && h > 380 && rng.chance(level.setback)) {
+      var steps = rng.int(1, 2);
+      var sw = w;
+      var sy = b.top;
+      for (var st = 0; st < steps; st++) {
+        sw = sw * rng.range(0.5, 0.72);
+        var sh = rng.range(60, 150);
+        var sx = b.x + (w - sw) * rng.range(0.15, 0.85);
+        sy -= sh;
+        b.setbacks.push({ x: sx, y: sy, w: sw, h: sh });
+        this._box(sx, sy, sw, sh, true);
+      }
+    }
     this.buildings.push(b);
     this._box(b.x, b.top, b.w, h, true);
     if (b.antennaH > 0) {
@@ -584,6 +657,81 @@
     };
     this.props.push(wire);
     return wire;
+  };
+
+  /** Factory chimney: a thin tower to swing around, and a perch on top. */
+  World.prototype._chimney = function (b) {
+    var rng = this.rng;
+    var w = rng.range(20, 30);
+    var h = rng.range(140, 300);
+    var x = b.x + rng.range(10, Math.max(12, b.w - w - 10));
+    var y = b.top - h;
+    var prop = { type: "chimney", x: x, y: y, w: w, h: h, seed: rng.int(0, 999) };
+    this.props.push(prop);
+    this._box(x, y, w, h, true, prop);
+    return prop;
+  };
+
+  /** Church spire: anchor only, so nobody gets impaled on it mid-swing. */
+  World.prototype._spire = function (b) {
+    var rng = this.rng;
+    var h = rng.range(70, 190);
+    var x = b.x + b.w * rng.range(0.3, 0.7);
+    var prop = { type: "spire", x: x, y: b.top - h, h: h, base: rng.range(14, 26) };
+    this.props.push(prop);
+    this._box(x - 5, b.top - h, 10, h, false, prop);
+    return prop;
+  };
+
+  /** Scaffolding down a facade: a web sticks anywhere along it. */
+  World.prototype._scaffold = function (b) {
+    var rng = this.rng;
+    var h = Math.min(b.h - 40, rng.range(180, 420));
+    var side = rng.chance(0.5) ? -1 : 1;
+    var w = 26;
+    var x = side < 0 ? b.x - w + 4 : b.x + b.w - 4;
+    var y = b.top + rng.range(0, 60);
+    var prop = { type: "scaffold", x: x, y: y, w: w, h: h, seed: rng.int(0, 999) };
+    this.props.push(prop);
+    this._box(x, y, w, h, false, prop);
+    return prop;
+  };
+
+  /** Tethered balloon: the envelope and its whole cable catch a web. */
+  World.prototype._balloon = function (b) {
+    var rng = this.rng;
+    var x = b.x + b.w * rng.range(0.3, 0.7);
+    var len = rng.range(220, 460);
+    this.props.push({
+      type: "balloon",
+      x: x,
+      baseY: b.top,
+      len: len,
+      y: b.top - len,
+      rx: rng.range(34, 52),
+      ry: rng.range(42, 64),
+      phase: rng.range(0, U.TAU),
+      sway: rng.range(10, 26),
+    });
+  };
+
+  /** Sky bridge: solid enough to run across and to swing under. */
+  World.prototype._bridge = function (a, b) {
+    var rng = this.rng;
+    var top = Math.max(a.top, b.top) + rng.range(50, 190);
+    var x0 = a.x + a.w - 6;
+    var x1 = b.x + 6;
+    var prop = {
+      type: "bridge",
+      x: x0,
+      y: top,
+      w: x1 - x0,
+      h: 16,
+      seed: rng.int(0, 999),
+    };
+    this.props.push(prop);
+    this._box(x0, top, prop.w, prop.h, true, prop);
+    return prop;
   };
 
   World.prototype._blimp = function (x) {
@@ -729,35 +877,43 @@
   World.prototype.ensureUpTo = function (x) {
     var rng = this.rng;
     while (this.nextX < x) {
-      var district = this.districtAt(this.nextX).def;
-      var w = rng.range(district.w[0], district.w[1]);
+      var level = LEVELS[this.levelIndex];
+      var props = level.props;
+      var w = rng.range(level.w[0], level.w[1]);
       var h;
       var forceHigh = this.nextX - this.lastHighX > 700;
-      if (forceHigh || rng.chance(district.towerChance)) {
-        h = rng.range(district.tower[0], district.tower[1]);
+      if (forceHigh || rng.chance(level.towerChance)) {
+        h = rng.range(level.tower[0], level.tower[1]);
       } else {
-        h = rng.range(district.h[0], district.h[1]);
+        h = rng.range(level.h[0], level.h[1]);
       }
 
       var b = this._push(w, h, false, forceHigh);
       if (b.h + b.antennaH >= HIGH_ANCHOR) this.lastHighX = b.x + b.w * 0.5;
 
-      var crane = null;
-      if (rng.chance(district.crane)) crane = this._crane(b);
-      else if (rng.chance(district.sign)) this._sign(b);
+      // --- level-specific structures --------------------------------------
+      if (level.chimney && rng.chance(level.chimney)) this._chimney(b);
+      if (level.spire && rng.chance(level.spire)) this._spire(b);
+      if (level.scaffold && rng.chance(level.scaffold)) this._scaffold(b);
+      if (level.balloon && rng.chance(level.balloon)) this._balloon(b);
 
-      if (
-        this.prev &&
-        b.x - (this.prev.x + this.prev.w) > 150 &&
-        rng.chance(district.wire)
-      ) {
-        this._wire(this.prev, b);
+      var crane = null;
+      if (rng.chance(props.crane)) crane = this._crane(b);
+      else if (rng.chance(props.sign)) this._sign(b);
+
+      if (this.prev) {
+        var span = b.x - (this.prev.x + this.prev.w);
+        if (level.bridge && span > 120 && span < 520 && rng.chance(level.bridge)) {
+          this._bridge(this.prev, b);
+        } else if (span > 150 && rng.chance(props.wire)) {
+          this._wire(this.prev, b);
+        }
       }
       this.prev = b;
 
       if (b.x > this.nextBlimpX) {
         this._blimp(b.x + rng.range(400, 1200));
-        this.nextBlimpX = b.x + rng.range(2800, 4800);
+        this.nextBlimpX = b.x + rng.range(2800, 4800) * (props.blimp || 1);
       }
       if (this.hazardsOn && b.x > this.nextHazardX) {
         this._hazard(b, crane);
@@ -765,7 +921,7 @@
       }
       if (this.hazardsOn && h > 300 && rng.chance(0.12)) this._turret(b);
 
-      var gap = rng.range(district.gap[0], district.gap[1]);
+      var gap = rng.range(level.gap[0], level.gap[1]);
       this._spawnPizzas(b, gap);
       this.nextX += w + gap;
     }
@@ -788,8 +944,10 @@
       var right =
         p.type === "wire"
           ? p.x1
-          : p.type === "blimp"
+          : p.type === "blimp" || p.type === "balloon"
           ? p.x + p.rx
+          : p.type === "spire"
+          ? p.x + 40
           : p.x1 || p.x + p.w;
       if (right < x) this.props.splice(i, 1);
     }
@@ -844,6 +1002,17 @@
         var dx = (x - p.x) / p.rx;
         var dy = (y - p.y) / p.ry;
         if (dx * dx + dy * dy <= 1) return p;
+      } else if (p.type === "balloon") {
+        var topX = p.x + (p.drift || 0);
+        var bdx = (x - topX) / p.rx;
+        var bdy = (y - p.y) / p.ry;
+        if (bdx * bdx + bdy * bdy <= 1) return p;
+        // The cable counts along its whole length.
+        if (y > p.y && y < p.baseY) {
+          var t = (y - p.y) / Math.max(1, p.baseY - p.y);
+          var cx = U.lerp(topX, p.x, t);
+          if (Math.abs(x - cx) <= 7) return p;
+        }
       }
     }
     return null;
@@ -1019,8 +1188,9 @@
     return null;
   };
 
-  World.DISTRICTS = DISTRICTS;
-  World.DISTRICT_LEN = DISTRICT_LEN;
+  World.LEVELS = LEVELS;
+  World.DISTRICTS = LEVELS;
+  World.DISTRICT_LEN = WEATHER_LEN;
   World.wireY = wireY;
   SW.World = World;
 })(window);

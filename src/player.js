@@ -697,10 +697,15 @@
         var bleed = impact > C.FATAL_IMPACT ? 0.55 : 0.9;
         this.vel.x *= bleed;
         this.vel.y *= bleed;
-        this.onWall = true;
-        this.wallNx = hit.nx;
-        this.wallTimer = C.WALL_GRIP;
-        this.kickTimer = C.KICK_COYOTE;
+        // Only a mostly vertical surface can be clung to. Ceilings — the
+        // underside of a sky bridge or a setback — just cost speed, otherwise
+        // the push-off would fire straight into them.
+        if (Math.abs(hit.nx) > 0.5) {
+          this.onWall = true;
+          this.wallNx = hit.nx > 0 ? 1 : -1;
+          this.wallTimer = C.WALL_GRIP;
+          this.kickTimer = C.KICK_COYOTE;
+        }
         if (game && impact > 120 * C.PACE) {
           game.onScrape(this.pos.x, this.pos.y, impact);
         }

@@ -21,6 +21,8 @@
     combo: document.getElementById("hud-combo"),
     chain: document.getElementById("hud-chain"),
     startTasks: document.getElementById("start-tasks"),
+    levelList: document.getElementById("level-list"),
+    levelHint: document.getElementById("level-hint"),
     deadTasks: document.getElementById("dead-tasks"),
     breakdown: document.getElementById("res-breakdown"),
     hint: document.getElementById("hud-hint"),
@@ -88,6 +90,7 @@
     weather: true,
     tutor: true,
     daily: false,
+    level: 0,
     low: false,
     perf: false,
     calm: false,
@@ -116,8 +119,13 @@
     return h >>> 0;
   }
 
+  function levelDef() {
+    return SW.World.LEVELS[settings.level] || SW.World.LEVELS[0];
+  }
+
   function bestKey() {
-    return settings.daily ? BEST_KEY + "-daily-" + dailySeed() : BEST_KEY;
+    var lvl = "-" + levelDef().id;
+    return settings.daily ? BEST_KEY + lvl + "-daily-" + dailySeed() : BEST_KEY + lvl;
   }
 
   var DEFAULT_BINDS = {
@@ -258,6 +266,7 @@
     store(SETTINGS_KEY, JSON.stringify(settings));
     game.best = parseInt(load(bestKey(), "0"), 10) || 0;
     el.best.textContent = game.best;
+    if (el.levelList.children.length) renderLevels();
   }
 
   // ---------------------------------------------------------------------------
@@ -299,7 +308,11 @@
     game.runId = (game.runId || 0) + 1;
     game.world.hazardsOn = settings.hazards;
     game.world.weatherOn = settings.weather;
-    game.world.reset(settings.daily ? dailySeed() : (Math.random() * 1e9) | 0);
+    // Each level is its own map: fixed layout on the daily seed, fresh otherwise.
+    game.world.reset(
+      settings.daily ? dailySeed() ^ levelDef().seed : (Math.random() * 1e9) | 0,
+      settings.level
+    );
     var pad = game.world.buildings[0];
     game.player.reset(pad.x + pad.w * 0.5, pad.top - C.PLAYER_R - 40);
     game.cam.x = game.player.pos.x;
@@ -1117,7 +1130,7 @@
       el.chain.classList.add("hidden");
     }
 
-    var d = game.world.districtAt(p.pos.x);
+    var d = game.world.districtAt();
     if (d.def.name !== lastDistrict) {
       lastDistrict = d.def.name;
       el.district.textContent = d.def.name;
@@ -1207,9 +1220,7 @@
     var p = game.player;
     var sp = p.speed();
     var intensity = U.clamp((sp - 900 * C.PACE) / (1600 * C.PACE), 0, 1);
-    var district = game.world.districtAt(
-      game.state === "menu" ? cam.x : p.pos.x
-    );
+    var district = game.world.districtAt();
 
     ctx.setTransform(game.view.dpr, 0, 0, game.view.dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
@@ -1729,6 +1740,37 @@
   // Boot
   // ---------------------------------------------------------------------------
 
+  function renderLevels() {
+    var levels = SW.World.LEVELS;
+    el.levelList.innerHTML = "";
+    for (var i = 0; i < levels.length; i++) {
+      (function (index) {
+        var def = levels[index];
+        var btn = document.createElement("button");
+        btn.className = "level" + (index === settings.level ? " active" : "");
+        btn.innerHTML = "";
+        btn.appendChild(document.createTextNode(def.name));
+        var best = document.createElement("b");
+        var saved = parseInt(
+          load(
+            BEST_KEY + "-" + def.id + (settings.daily ? "-daily-" + dailySeed() : ""),
+            "0"
+          ),
+          10
+        );
+        best.textContent = saved ? saved + " очк." : "не пройдено";
+        btn.appendChild(best);
+        btn.addEventListener("click", function () {
+          settings.level = index;
+          applySettings();
+          renderLevels();
+        });
+        el.levelList.appendChild(btn);
+      })(i);
+    }
+    el.levelHint.textContent = levelDef().hint;
+  }
+
   function refreshMenuTasks() {
     game.challenges = buildChallenges();
     renderChallenges(el.startTasks);
@@ -1738,6 +1780,7 @@
   rebuildBinds();
   renderBinds();
   applySettings();
+  renderLevels();
   newRun();
   refreshMenuTasks();
   game.cam.y = -420;

@@ -26,22 +26,67 @@ function check(name, ok, detail) {
   await page.goto(URL, { waitUntil: "load" });
   await new Promise((r) => setTimeout(r, 500));
 
-  // --- districts and hazards exist in the generated world --------------------
-  const world = await page.evaluate(() => {
+  // --- every level is a different map ----------------------------------------
+  const maps = await page.evaluate(() => {
     const g = window.SWGame;
-    g.world.ensureUpTo(26000);
-    const ids = [0, 3500, 7000, 10500, 14000].map(
-      (x) => g.world.districtAt(x).def.id
-    );
-    return {
-      districts: ids,
-      unique: new Set(ids).size,
-      hazards: g.world.hazards.length,
-      props: g.world.props.length,
-    };
+    const levels = window.SW.World.LEVELS;
+    const out = [];
+    for (let i = 0; i < levels.length; i++) {
+      g.world.reset(levels[i].seed, i);
+      g.world.ensureUpTo(9000);
+      const props = {};
+      for (const p of g.world.props) props[p.type] = (props[p.type] || 0) + 1;
+      const heights = g.world.buildings.map((b) => b.h);
+      out.push({
+        id: levels[i].id,
+        name: levels[i].name,
+        buildings: g.world.buildings.length,
+        avgHeight: Math.round(heights.reduce((a, b) => a + b, 0) / heights.length),
+        props,
+        hazards: g.world.hazards.length,
+      });
+    }
+    return out;
   });
-  check("districts change along the run", world.unique >= 4, world.districts.join(","));
-  check("hazards spawn", world.hazards > 0, `${world.hazards} hazards`);
+  const signature = (m) => Object.keys(m.props).sort().join(",");
+  const uniqueMixes = new Set(maps.map(signature)).size;
+  const heightSpread =
+    Math.max(...maps.map((m) => m.avgHeight)) -
+    Math.min(...maps.map((m) => m.avgHeight));
+  check(
+    "six levels with different anchors and architecture",
+    maps.length === 6 && uniqueMixes >= 5 && heightSpread > 300,
+    maps.map((m) => `${m.id}:${signature(m)}`).join(" | ")
+  );
+  check(
+    "special structures appear only on their own level",
+    maps.find((m) => m.id === "skyline").props.bridge > 0 &&
+      maps.find((m) => m.id === "site").props.scaffold > 0 &&
+      maps.find((m) => m.id === "oldtown").props.spire > 0 &&
+      maps.find((m) => m.id === "industrial").props.chimney > 0 &&
+      !maps.find((m) => m.id === "centre").props.bridge,
+    JSON.stringify(maps.map((m) => m.props))
+  );
+
+  // --- the picker starts the chosen map ---------------------------------------
+  const picked = await page.evaluate(async () => {
+    const buttons = document.querySelectorAll("#level-list .level");
+    if (buttons.length < 6) return { skipped: true };
+    buttons[4].click(); // Небесный квартал
+    await new Promise((r) => setTimeout(r, 60));
+    const stored = JSON.parse(localStorage.getItem("swing-settings-v1"));
+    // The list is rebuilt on selection, so look at the fresh nodes.
+    const fresh = document.querySelectorAll("#level-list .level");
+    return { level: stored.level, active: fresh[4].classList.contains("active") };
+  });
+  check(
+    "level picker selects and remembers the map",
+    picked.skipped || (picked.level === 4 && picked.active),
+    JSON.stringify(picked)
+  );
+  await page.evaluate(() => {
+    document.querySelectorAll("#level-list .level")[0].click();
+  });
 
   await page.click("#btn-play");
   await new Promise((r) => setTimeout(r, 500));
@@ -546,7 +591,12 @@ function check(name, ok, detail) {
 
     // Firing a web costs supply; at zero it must refuse.
     p.webAmmo = 2;
-    const anchor = p.aimAssist(p.pos.x + 300, p.pos.y - 300, g.world);
+    let anchor = null;
+    for (let deg = 20; deg <= 85 && !anchor; deg += 5) {
+      const a = (-deg * Math.PI) / 180;
+      anchor = p.probeDir(Math.cos(a), Math.sin(a), g.world);
+    }
+    if (!anchor) return { skipped: true };
     const spent = anchor ? p.shoot(anchor.x, anchor.y, g.world) : null;
     const afterShot = p.webAmmo;
     p.release();

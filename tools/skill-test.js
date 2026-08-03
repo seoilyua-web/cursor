@@ -170,13 +170,29 @@ function swing(world, anchorY, hold, input) {
 {
   const world = makeWorld(77);
   world.hazardsOn = true;
-  // High above the skyline so the ray meets nothing but the cocoon.
+  // Find a patch of empty sky with a clear line from where the hero will hang:
+  // blimps, balloons and masts all answer along the way.
+  const clearShot = (ex, ey) => {
+    for (let t = 0; t <= 1; t += 0.05) {
+      const x = ex - 240 + 240 * t;
+      const y = ey + 120 - 120 * t;
+      if (world.softAt(x, y) || world.collide(x, y, 14)) return false;
+    }
+    return true;
+  };
+  let spotY = -1500;
+  for (let y = -1500; y > -2800; y -= 40) {
+    if (clearShot(3000, y)) {
+      spotY = y;
+      break;
+    }
+  }
   const enemy = {
     type: "runner",
     color: "red",
     x: 3000,
-    y: -1500,
-    baseY: -1500,
+    y: spotY,
+    baseY: spotY,
     r: 15,
     vx: 0,
     phase: 0,

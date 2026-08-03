@@ -30,27 +30,26 @@ const URL = process.argv[2] || "http://localhost:8000/index.html";
     document.getElementById("overlay").classList.add("hidden");
   });
 
-  // One frame per district, at its centre.
-  const districts = await page.evaluate(() => window.SW.World.DISTRICTS.map((d) => d.id));
-  const len = await page.evaluate(() => window.SW.World.DISTRICT_LEN);
-  for (let i = 0; i < districts.length; i++) {
-    const x = len * i + len * 0.5;
+  // One frame per level map.
+  const levels = await page.evaluate(() => window.SW.World.LEVELS.map((d) => d.id));
+  for (let i = 0; i < levels.length; i++) {
     await page.evaluate(
-      (cx, rain) => {
+      (index, rain) => {
         const g = window.SWGame;
-        g.world.ensureUpTo(cx + 3600);
-        g.cam.x = cx;
-        g.cam.y = -520;
-        g.cam.zoom = 0.75;
+        g.world.reset(window.SW.World.LEVELS[index].seed, index);
+        g.world.ensureUpTo(6000);
+        g.cam.x = 2600;
+        g.cam.y = -620;
+        g.cam.zoom = 0.62;
         g.world.weather.rain = rain;
         g.world.weather.wind = rain ? -0.6 : 0;
-        g.world.weather.fog = rain ? 0.3 : 0;
+        g.world.weather.fog = rain ? 0.25 : 0;
       },
-      x,
+      i,
       i === 2 ? 0.9 : 0
     );
-    await new Promise((r) => setTimeout(r, 260));
-    await page.screenshot({ path: `/tmp/district-${districts[i]}.png` });
+    await new Promise((r) => setTimeout(r, 280));
+    await page.screenshot({ path: `/tmp/level-${levels[i]}.png` });
   }
 
   // A helicopter in frame.

@@ -151,6 +151,21 @@
       if (b.x + b.w < cam.x - half) continue;
       if (b.x > cam.x + half) break;
       ctx.drawImage(b.sprite, b.x, b.top - b.antennaH);
+      if (b.setbacks) {
+        for (var k = 0; k < b.setbacks.length; k++) {
+          var sb = b.setbacks[k];
+          ctx.fillStyle = "#141a2e";
+          ctx.fillRect(sb.x, sb.y, sb.w, sb.h);
+          ctx.fillStyle = "rgba(150,190,255,0.18)";
+          ctx.fillRect(sb.x, sb.y, sb.w, 2);
+          ctx.fillStyle = "rgba(255,214,150,0.5)";
+          for (var wx = sb.x + 9; wx < sb.x + sb.w - 8; wx += 20) {
+            for (var wy = sb.y + 12; wy < sb.y + sb.h - 8; wy += 22) {
+              ctx.fillRect(wx, wy, 8, 11);
+            }
+          }
+        }
+      }
     }
   };
 
@@ -325,6 +340,115 @@
     ctx.fillRect(p.rx * 0.02, p.ry * 0.85, p.rx * 0.1, p.ry * 0.16);
 
     ctx.restore();
+  }
+
+  function drawChimney(ctx, p, time) {
+    var taper = p.w * 0.22;
+    ctx.fillStyle = "#1a1c24";
+    ctx.beginPath();
+    ctx.moveTo(p.x + taper, p.y);
+    ctx.lineTo(p.x + p.w - taper, p.y);
+    ctx.lineTo(p.x + p.w, p.y + p.h);
+    ctx.lineTo(p.x, p.y + p.h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "rgba(230,120,90,0.5)";
+    for (var i = 1; i <= 3; i++) {
+      var t = i / 4;
+      var yy = p.y + p.h * t * 0.6;
+      var inset = taper * (1 - t * 0.5);
+      ctx.fillRect(p.x + inset, yy, p.w - inset * 2, 5);
+    }
+    ctx.fillStyle = Math.sin(time * 3) > 0 ? "#ff5a6b" : "rgba(255,90,107,0.35)";
+    ctx.beginPath();
+    ctx.arc(p.x + p.w / 2, p.y + 4, 3, 0, U.TAU);
+    ctx.fill();
+  }
+
+  function drawSpire(ctx, p) {
+    ctx.fillStyle = "#1b1622";
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(p.x + p.base / 2, p.y + p.h);
+    ctx.lineTo(p.x - p.base / 2, p.y + p.h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,200,140,0.4)";
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.fillStyle = "#e8c46a";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - 4, 3.4, 0, U.TAU);
+    ctx.fill();
+  }
+
+  function drawScaffold(ctx, p) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(220,190,120,0.75)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(p.x + 2, p.y);
+    ctx.lineTo(p.x + 2, p.y + p.h);
+    ctx.moveTo(p.x + p.w - 2, p.y);
+    ctx.lineTo(p.x + p.w - 2, p.y + p.h);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(200,170,110,0.55)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    for (var y = p.y + 26; y < p.y + p.h; y += 34) {
+      ctx.moveTo(p.x, y);
+      ctx.lineTo(p.x + p.w, y);
+      ctx.moveTo(p.x + 2, y);
+      ctx.lineTo(p.x + p.w - 2, y - 34);
+    }
+    ctx.stroke();
+    ctx.fillStyle = "rgba(120,180,255,0.10)";
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.restore();
+  }
+
+  function drawBalloon(ctx, p) {
+    var topX = p.x + (p.drift || 0);
+    ctx.strokeStyle = "rgba(220,230,255,0.5)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.baseY);
+    ctx.lineTo(topX, p.y + p.ry * 0.8);
+    ctx.stroke();
+
+    ctx.fillStyle = "#d94f6b";
+    ctx.beginPath();
+    ctx.ellipse(topX, p.y, p.rx, p.ry, 0, 0, U.TAU);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,238,200,0.85)";
+    ctx.beginPath();
+    ctx.ellipse(topX - p.rx * 0.34, p.y, p.rx * 0.2, p.ry * 0.94, 0, 0, U.TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(topX + p.rx * 0.34, p.y, p.rx * 0.2, p.ry * 0.94, 0, 0, U.TAU);
+    ctx.fill();
+    ctx.fillStyle = "#3a2a20";
+    ctx.fillRect(topX - 9, p.y + p.ry * 0.82, 18, 12);
+  }
+
+  function drawBridge(ctx, p) {
+    ctx.fillStyle = "#141a2c";
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.fillStyle = "rgba(150,190,255,0.22)";
+    ctx.fillRect(p.x, p.y, p.w, 2);
+    ctx.fillStyle = "rgba(255,214,150,0.75)";
+    for (var x = p.x + 12; x < p.x + p.w - 8; x += 26) {
+      ctx.fillRect(x, p.y + 5, 12, 6);
+    }
+    ctx.strokeStyle = "rgba(120,150,220,0.5)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for (var t = p.x + 8; t < p.x + p.w - 8; t += 34) {
+      ctx.moveTo(t, p.y + p.h);
+      ctx.lineTo(t + 17, p.y + p.h + 13);
+      ctx.lineTo(t + 34, p.y + p.h);
+    }
+    ctx.stroke();
   }
 
   function drawCraneLoad(ctx, p) {
@@ -660,11 +784,16 @@
     for (var i = 0; i < world.props.length; i++) {
       var p = world.props[i];
       var px = p.type === "wire" ? p.x0 : p.x;
+      if (p.type === "bridge") px = p.x + p.w * 0.5;
       if (px < cam.x - half || px > cam.x + half) continue;
       if (p.type === "crane") {
         drawCrane(ctx, p, time);
         if (p.load) drawCraneLoad(ctx, p);
-      }
+      } else if (p.type === "chimney") drawChimney(ctx, p, time);
+      else if (p.type === "spire") drawSpire(ctx, p);
+      else if (p.type === "scaffold") drawScaffold(ctx, p);
+      else if (p.type === "balloon") drawBalloon(ctx, p);
+      else if (p.type === "bridge") drawBridge(ctx, p);
       else if (p.type === "sign") drawSign(ctx, p, time);
       else if (p.type === "wire") drawWire(ctx, p);
       else if (p.type === "blimp") drawBlimp(ctx, p, time);
