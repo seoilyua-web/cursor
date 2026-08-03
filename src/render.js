@@ -679,6 +679,24 @@
    * Rival couriers: same build as the hero, only in their own colours. The pose
    * says what they are doing — closing in, winding up a throw, or just hanging.
    */
+  function rivalLimb(ctx, x0, y0, x1, y1, x2, y2, width, color, joint) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.fillStyle = joint;
+    ctx.beginPath();
+    ctx.arc(x1, y1, width * 0.42, 0, U.TAU);
+    ctx.fill();
+  }
+
+  /**
+   * Rival delivery robots: same chassis as the hero, other livery. Red models
+   * close in, green ones keep their distance and throw.
+   */
   function drawRival(ctx, z, time) {
     var pal = RIVAL[z.color] || RIVAL.red;
     var face = z.face || (z.vx >= 0 ? 1 : -1);
@@ -687,6 +705,7 @@
     var winding = z.fireCd > 0 && z.fireCd < 0.5;
     var step = Math.sin(time * (moving ? 9 : 2) + z.phase);
     var lean = moving && z.alert > 0.3 ? 0.18 * face : 0;
+    var eye = z.alert > 0.2 ? (z.color === "green" ? "#7dffcb" : "#ff6a6a") : "#7a8296";
 
     ctx.save();
     ctx.translate(z.x, z.y);
@@ -695,88 +714,62 @@
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    ctx.strokeStyle = RIVAL_CLOTH;
-    ctx.lineWidth = 4.5;
-    ctx.beginPath();
+    // legs
     if (airborne) {
-      // Mid-leap: legs tucked.
-      ctx.moveTo(0, 4);
-      ctx.lineTo(7, 12);
-      ctx.moveTo(0, 4);
-      ctx.lineTo(-6, 14);
+      rivalLimb(ctx, -1, 5, 4, 10, 7, 13, 4.2, RIVAL_CLOTH, pal.dark);
+      rivalLimb(ctx, 1, 5, -3, 11, -6, 14, 4.2, RIVAL_CLOTH, pal.dark);
     } else if (moving) {
-      ctx.moveTo(0, 4);
-      ctx.lineTo(step * 8, 15);
-      ctx.moveTo(0, 4);
-      ctx.lineTo(-step * 8, 15);
+      rivalLimb(ctx, -1, 5, step * 5, 11, step * 9, 16, 4.2, RIVAL_CLOTH, pal.dark);
+      rivalLimb(ctx, 1, 5, -step * 5, 11, -step * 9, 16, 4.2, RIVAL_CLOTH, pal.dark);
     } else {
-      ctx.moveTo(0, 4);
-      ctx.lineTo(-5, 16);
-      ctx.moveTo(0, 4);
-      ctx.lineTo(6, 16);
+      rivalLimb(ctx, -1, 5, -3, 11, -5, 16, 4.2, RIVAL_CLOTH, pal.dark);
+      rivalLimb(ctx, 1, 5, 3, 11, 6, 16, 4.2, RIVAL_CLOTH, pal.dark);
     }
-    ctx.stroke();
 
-    ctx.strokeStyle = pal.suit;
-    ctx.lineWidth = 7.5;
-    ctx.beginPath();
-    ctx.moveTo(0, -5);
-    ctx.lineTo(0, 5);
-    ctx.stroke();
-
-    ctx.strokeStyle = RIVAL_CLOTH;
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.moveTo(-3.5, -1.5);
-    ctx.lineTo(3.5, -1.5);
-    ctx.moveTo(-3.5, 2.5);
-    ctx.lineTo(3.5, 2.5);
-    ctx.stroke();
-
-    ctx.strokeStyle = pal.dark;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    if (winding) {
-      ctx.moveTo(0, -3);
-      ctx.lineTo(-11, -12);
-      ctx.moveTo(0, -3);
-      ctx.lineTo(9, 2);
-    } else if (airborne) {
-      ctx.moveTo(0, -3);
-      ctx.lineTo(11, -9);
-      ctx.moveTo(0, -3);
-      ctx.lineTo(-8, -6);
-    } else if (moving) {
-      ctx.moveTo(0, -3);
-      ctx.lineTo(10, -6 + step * 4);
-      ctx.moveTo(0, -3);
-      ctx.lineTo(-9, 2 - step * 4);
-    } else {
-      ctx.moveTo(0, -3);
-      ctx.lineTo(9, 3);
-      ctx.moveTo(0, -3);
-      ctx.lineTo(-9, 3);
-    }
-    ctx.stroke();
-
+    // chassis
     ctx.fillStyle = pal.suit;
     ctx.beginPath();
-    ctx.arc(0, -12, 6.5, 0, U.TAU);
+    ctx.moveTo(-5, -7);
+    ctx.lineTo(5, -7);
+    ctx.lineTo(4.5, 5);
+    ctx.lineTo(-4.5, 5);
+    ctx.closePath();
     ctx.fill();
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(0, -12, 6.5, 0, U.TAU);
-    ctx.clip();
     ctx.fillStyle = RIVAL_CLOTH;
-    ctx.fillRect(-7, -17.5, 14, 2.2);
-    ctx.restore();
+    ctx.fillRect(-5, -3.2, 10, 1.8);
+    ctx.fillRect(-4.8, 0.6, 9.6, 1.8);
 
-    ctx.fillStyle = RIVAL_CLOTH;
+    // arms: winding up a throw, running, or idle
+    if (winding) {
+      rivalLimb(ctx, 3, -6, -3, -12, -10, -14, 3.4, pal.dark, RIVAL_CLOTH);
+      rivalLimb(ctx, -3, -6, 4, -3, 9, 1, 3.4, pal.dark, RIVAL_CLOTH);
+    } else if (airborne) {
+      rivalLimb(ctx, 3, -6, 8, -10, 11, -13, 3.4, pal.dark, RIVAL_CLOTH);
+      rivalLimb(ctx, -3, -6, -7, -9, -10, -11, 3.4, pal.dark, RIVAL_CLOTH);
+    } else if (moving) {
+      rivalLimb(ctx, 3, -6, 7, -3 + step * 3, 10, 1 + step * 3, 3.4, pal.dark, RIVAL_CLOTH);
+      rivalLimb(ctx, -3, -6, -7, -2 - step * 3, -10, 2 - step * 3, 3.4, pal.dark, RIVAL_CLOTH);
+    } else {
+      rivalLimb(ctx, 3, -6, 7, -2, 9, 3, 3.4, pal.dark, RIVAL_CLOTH);
+      rivalLimb(ctx, -3, -6, -7, -2, -9, 3, 3.4, pal.dark, RIVAL_CLOTH);
+    }
+
+    // head with a visor
+    ctx.fillStyle = pal.suit;
     ctx.beginPath();
-    ctx.ellipse(3, -12.5, 3, 2, -0.25, 0, U.TAU);
+    if (ctx.roundRect) ctx.roundRect(-5.6, -18, 11.2, 9.6, 2.8);
+    else ctx.rect(-5.6, -18, 11.2, 9.6);
     ctx.fill();
+    ctx.fillStyle = RIVAL_CLOTH;
+    ctx.fillRect(-5.6, -18, 11.2, 1.7);
     ctx.beginPath();
-    ctx.ellipse(-2.4, -12.8, 2.2, 1.7, 0.25, 0, U.TAU);
+    if (ctx.roundRect) ctx.roundRect(-4.3, -15.3, 8.8, 4.2, 1.9);
+    else ctx.rect(-4.3, -15.3, 8.8, 4.2);
+    ctx.fill();
+    ctx.fillStyle = eye;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-3.2, -14.5, 6.6, 2.5, 1.2);
+    else ctx.rect(-3.2, -14.5, 6.6, 2.5);
     ctx.fill();
 
     ctx.restore();

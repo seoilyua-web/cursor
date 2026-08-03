@@ -36,6 +36,7 @@
     this.tether = null;
     this.carrying = false;
     this.webAmmo = C.WEB_START;
+    this.pose = { arm: 0, leg: 0, lean: 0, reach: 0 };
   }
 
   Player.prototype.reset = function (x, y) {
@@ -63,6 +64,7 @@
     this.tether = null;
     this.carrying = false;
     this.webAmmo = C.WEB_START;
+    this.pose = { arm: 0, leg: 0, lean: 0, reach: 0 };
   };
 
   Player.prototype.attached = function () {
@@ -668,6 +670,21 @@
     if (Math.abs(this.vel.x) > 40 * C.PACE) this.facing = this.vel.x > 0 ? 1 : -1;
     this.limbPhase += dt * 6;
 
+    // Servos have inertia: the pose eases towards its target instead of
+    // snapping between states.
+    var wantReach = this.web === "attached" || this.web === "flying" ? 1 : 0;
+    var wantLeg = this.onRoof ? 1 : this.onWall ? 0.4 : 0;
+    var wantArm = this.onWall ? 1 : attached ? 0.6 : 0;
+    this.pose.reach = U.damp(this.pose.reach, wantReach, 14, dt);
+    this.pose.leg = U.damp(this.pose.leg, wantLeg, 12, dt);
+    this.pose.arm = U.damp(this.pose.arm, wantArm, 12, dt);
+    this.pose.lean = U.damp(
+      this.pose.lean,
+      U.clamp(this.vel.x / (900 * C.PACE), -1, 1),
+      6,
+      dt
+    );
+
     if (this.pos.y + C.PLAYER_R >= C.GROUND_Y) {
       this.pos.y = C.GROUND_Y - C.PLAYER_R;
       if (game) game.kill("ground");
@@ -717,12 +734,10 @@
   // Drawing
   // ---------------------------------------------------------------------------
 
-  var SUIT = "#f2c313";
-  var SUIT_DARK = "#c08f07";
-  var CLOTH = "#16171d";
-  var EYE = "#16171d";
+  var SHELL = "#f2c313";
+  var SHELL_DARK = "#c08f07";
+  var FRAME = "#16171d";
   var PACK = "#262a33";
-  var PACK_EDGE = "#f2c313";
 
   Player.prototype.handPos = function (out) {
     var ux = 0;
@@ -737,10 +752,32 @@
       ux = this.missDir.x;
       uy = this.missDir.y;
     }
-    out.x = this.pos.x + ux * 10;
-    out.y = this.pos.y + uy * 10;
+    out.x = this.pos.x + ux * 11;
+    out.y = this.pos.y + uy * 11;
     return out;
   };
+
+  /** Status light: the machine reports its own state. */
+  Player.prototype.statusColor = function () {
+    if (this.stun > 0) return "#ff5a5a";
+    if (this.webAmmo <= 4) return "#ff8a5a";
+    if (this.carrying) return "#8ff0ff";
+    return "#7dffcb";
+  };
+
+  function limb(ctx, x0, y0, x1, y1, x2, y2, width, color, joint) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.fillStyle = joint;
+    ctx.beginPath();
+    ctx.arc(x1, y1, width * 0.42, 0, U.TAU);
+    ctx.fill();
+  }
 
   Player.prototype.draw = function (ctx) {
     var ang;
@@ -753,135 +790,130 @@
     } else if (this.onWall) {
       ang = this.wallNx * 0.32;
     } else {
-      ang = U.clamp(this.vel.x / (1600 * C.PACE), -0.6, 0.6);
+      ang = U.clamp(this.pose.lean * 0.6, -0.6, 0.6);
     }
     if (this.stun > 0) ang += Math.sin(this.stun * 40) * 0.5;
 
     var face = this.onWall ? -this.wallNx || 1 : this.facing;
+    var swing = Math.sin(this.limbPhase);
+    var run = this.onRoof ? Math.sin(this.runPhase) : 0;
+    var reach = this.pose.reach;
+    var status = this.statusColor();
+    var lit = this.stun > 0 ? (Math.sin(this.stun * 50) > 0 ? 1 : 0.2) : 1;
 
     ctx.save();
     ctx.translate(this.pos.x, this.pos.y);
     ctx.rotate(ang);
     ctx.scale(face, 1);
-
-    var swing = Math.sin(this.limbPhase);
-    var run = this.onRoof ? Math.sin(this.runPhase) : 0;
-    var free = !this.onRoof && !this.onWall && this.web !== "attached";
-    var tuck = free ? U.clamp(this.vel.y / (900 * C.PACE), -1, 1) : 0;
-
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    // Courier pack, drawn first so the body sits in front of it.
+    // --- cargo pack, behind the chassis -----------------------------------
     ctx.fillStyle = PACK;
-    ctx.fillRect(-15, -9, 12, 16);
-    ctx.strokeStyle = PACK_EDGE;
+    ctx.fillRect(-16, -8, 11, 15);
+    ctx.strokeStyle = SHELL;
     ctx.lineWidth = 1.6;
-    ctx.strokeRect(-15, -9, 12, 16);
+    ctx.strokeRect(-16, -8, 11, 15);
     ctx.beginPath();
-    ctx.moveTo(-15, -3.5);
-    ctx.lineTo(-3, -3.5);
+    ctx.moveTo(-16, -2.5);
+    ctx.lineTo(-5, -2.5);
     ctx.stroke();
+    // antenna, trailing with speed
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(-12, -9);
+    ctx.quadraticCurveTo(-15 - this.pose.lean * 6, -18, -19 - this.pose.lean * 9, -21);
+    ctx.stroke();
+    ctx.fillStyle = status;
+    ctx.globalAlpha = lit;
+    ctx.beginPath();
+    ctx.arc(-19 - this.pose.lean * 9, -21, 1.9, 0, U.TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
     if (this.carrying) {
-      ctx.fillStyle = "rgba(120,240,255,0.85)";
-      ctx.fillRect(-13.5, -13, 9, 4.5);
-      ctx.strokeStyle = "rgba(180,250,255,0.9)";
-      ctx.lineWidth = 1.2;
-      ctx.strokeRect(-13.5, -13, 9, 4.5);
+      ctx.fillStyle = "rgba(120,240,255,0.9)";
+      ctx.fillRect(-14.5, -12, 8, 4.2);
     }
 
-    ctx.strokeStyle = CLOTH;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
+    // --- legs ---------------------------------------------------------------
+    var legSpread = U.lerp(6, 9, this.pose.leg);
     if (this.onRoof) {
-      ctx.moveTo(0, 4);
-      ctx.lineTo(run * 9, 16);
-      ctx.moveTo(0, 4);
-      ctx.lineTo(-run * 9, 16);
-    } else if (this.web === "attached") {
-      ctx.moveTo(0, 4);
-      ctx.lineTo(6 + swing * 3, 18);
-      ctx.moveTo(0, 4);
-      ctx.lineTo(-4 + swing * 4, 17);
+      limb(ctx, -1, 5, run * 5, 11, run * 9, 17, 4.5, SHELL_DARK, FRAME);
+      limb(ctx, 1, 5, -run * 5, 11, -run * 9, 17, 4.5, SHELL_DARK, FRAME);
     } else if (this.onWall) {
-      ctx.moveTo(0, 4);
-      ctx.lineTo(-9, 13);
-      ctx.moveTo(0, 4);
-      ctx.lineTo(-2, 16);
+      limb(ctx, -1, 5, -5, 10, -9, 14, 4.5, SHELL_DARK, FRAME);
+      limb(ctx, 1, 5, -2, 11, -2, 17, 4.5, SHELL_DARK, FRAME);
     } else {
-      ctx.moveTo(0, 4);
-      ctx.lineTo(9 - tuck * 4, 13 + tuck * 3);
-      ctx.moveTo(0, 4);
-      ctx.lineTo(-7, 15 - tuck * 4);
+      limb(ctx, -1, 5, 4 + swing, 11, legSpread + swing * 2, 16, 4.5, SHELL_DARK, FRAME);
+      limb(ctx, 1, 5, -4, 11, -legSpread + swing, 15, 4.5, SHELL_DARK, FRAME);
     }
+
+    // --- chassis ------------------------------------------------------------
+    ctx.fillStyle = SHELL;
+    ctx.beginPath();
+    ctx.moveTo(-5, -7);
+    ctx.lineTo(5, -7);
+    ctx.lineTo(4.5, 5);
+    ctx.lineTo(-4.5, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = FRAME;
+    ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.strokeStyle = SUIT;
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.moveTo(0, -5);
-    ctx.lineTo(0, 5);
-    ctx.stroke();
+    ctx.fillStyle = FRAME;
+    ctx.fillRect(-5, -3.2, 10, 1.9);
+    ctx.fillRect(-4.8, 0.6, 9.6, 1.9);
 
-    // Wasp stripes across the chest.
-    ctx.strokeStyle = CLOTH;
-    ctx.lineWidth = 1.8;
+    // chest indicator
+    ctx.fillStyle = status;
+    ctx.globalAlpha = lit;
     ctx.beginPath();
-    ctx.moveTo(-4, -2.5);
-    ctx.lineTo(4, -2.5);
-    ctx.moveTo(-4, 1);
-    ctx.lineTo(4, 1);
-    ctx.moveTo(-4, 4.5);
-    ctx.lineTo(4, 4.5);
-    ctx.stroke();
+    ctx.arc(0.6, -5, 1.9, 0, U.TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
 
-    ctx.strokeStyle = SUIT_DARK;
-    ctx.lineWidth = 4.5;
-    ctx.beginPath();
-    if (this.web === "attached" || this.web === "flying") {
-      ctx.moveTo(0, -4);
-      ctx.lineTo(2, -18);
-      ctx.moveTo(0, -4);
-      ctx.lineTo(-9 - swing * 3, 3 + swing * 2);
+    // --- arms ---------------------------------------------------------------
+    var reachX = U.lerp(9, 2, reach);
+    var reachY = U.lerp(2, -17, reach);
+    limb(ctx, 3, -6, reachX * 0.6 + 2, reachY * 0.5 - 2, reachX, reachY, 3.6, SHELL_DARK, FRAME);
+    if (this.onWall) {
+      limb(ctx, -3, -6, -8, -9, -12, -12, 3.6, SHELL_DARK, FRAME);
     } else if (this.onRoof) {
-      ctx.moveTo(0, -4);
-      ctx.lineTo(-run * 8, 4);
-      ctx.moveTo(0, -4);
-      ctx.lineTo(run * 8, 4);
-    } else if (this.onWall) {
-      ctx.moveTo(0, -4);
-      ctx.lineTo(-11, -10);
-      ctx.moveTo(0, -4);
-      ctx.lineTo(-8, 3);
+      limb(ctx, -3, -6, -run * 5, -2, -run * 9, 3, 3.6, SHELL_DARK, FRAME);
     } else {
-      ctx.moveTo(0, -4);
-      ctx.lineTo(12, -6 + tuck * 5);
-      ctx.moveTo(0, -4);
-      ctx.lineTo(-11, -2 - tuck * 4);
+      limb(ctx, -3, -6, -8, -2 + swing, -11 - swing * 2, 2 + swing * 2, 3.6, SHELL_DARK, FRAME);
     }
-    ctx.stroke();
 
-    ctx.fillStyle = SUIT;
+    // web emitter on the working wrist
+    ctx.fillStyle = FRAME;
     ctx.beginPath();
-    ctx.arc(0, -12, 7, 0, U.TAU);
+    ctx.arc(reachX, reachY, 2.1, 0, U.TAU);
     ctx.fill();
 
-    // Stripe across the hood, clipped to the head.
-    ctx.save();
+    // --- head ---------------------------------------------------------------
+    ctx.fillStyle = SHELL;
     ctx.beginPath();
-    ctx.arc(0, -12, 7, 0, U.TAU);
-    ctx.clip();
-    ctx.fillStyle = CLOTH;
-    ctx.fillRect(-7, -17.5, 14, 2.4);
-    ctx.restore();
+    if (ctx.roundRect) ctx.roundRect(-6, -18.5, 12, 10, 3);
+    else ctx.rect(-6, -18.5, 12, 10);
+    ctx.fill();
+    ctx.fillStyle = FRAME;
+    ctx.fillRect(-6, -18.5, 12, 1.8);
 
-    ctx.fillStyle = EYE;
+    // visor
+    ctx.fillStyle = FRAME;
     ctx.beginPath();
-    ctx.ellipse(3.4, -13, 3.4, 2.3, -0.25, 0, U.TAU);
+    if (ctx.roundRect) ctx.roundRect(-4.6, -15.6, 9.4, 4.4, 2);
+    else ctx.rect(-4.6, -15.6, 9.4, 4.4);
     ctx.fill();
+    ctx.globalAlpha = lit;
+    ctx.fillStyle = status;
     ctx.beginPath();
-    ctx.ellipse(-2.6, -13.4, 2.4, 1.8, 0.25, 0, U.TAU);
+    if (ctx.roundRect) ctx.roundRect(-3.4, -14.8, 7, 2.6, 1.3);
+    else ctx.rect(-3.4, -14.8, 7, 2.6);
     ctx.fill();
+    ctx.globalAlpha = 1;
 
     ctx.restore();
   };
