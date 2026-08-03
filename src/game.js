@@ -1227,10 +1227,12 @@
     ctx.setTransform(game.view.dpr, 0, 0, game.view.dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
+    SW.Render.accent = district.def.accent || "#ff3b6b";
+    SW.Render.wet = settings.weather ? game.world.weather.rain : 0;
     SW.Render.sky(ctx, cam, w, h, SW.Render.palette(district));
     SW.Render.stars(ctx, cam, w, h);
     SW.Render.parallax(ctx, cam, w, h, district);
-    SW.Render.ground(ctx, cam, w, h);
+    SW.Render.ground(ctx, cam, w, h, game.time);
 
     var shakeAmt = settings.calm ? 0 : cam.shake;
     var shakeX = (Math.random() - 0.5) * shakeAmt;
@@ -1439,10 +1441,28 @@
     popup(game.player.pos.x, game.player.pos.y - 34, "ПАУТИНА КОНЧИЛАСЬ", true);
   }
 
+  /** Where a rival will be when the web gets there. */
+  function interceptOf(e) {
+    var p = game.player;
+    var vx = e.vx || 0;
+    var vy = e.vy || 0;
+    var tx = e.x;
+    var ty = e.y;
+    for (var i = 0; i < 2; i++) {
+      var t = Math.hypot(tx - p.pos.x, ty - p.pos.y) / C.WEB_SHOT_SPEED;
+      tx = e.x + vx * t;
+      ty = e.y + vy * t;
+    }
+    return { x: tx, y: ty };
+  }
+
   function fireOrKick() {
     var p = game.player;
     if (game.targetEnemy) {
-      fireWebShot(game.targetEnemy.x, game.targetEnemy.y);
+      // The target is already chosen, so the throw leads it instead of
+      // trailing behind a rival running along a roof.
+      var aimAt = interceptOf(game.targetEnemy);
+      fireWebShot(aimAt.x, aimAt.y);
       return;
     }
     if (p.shoot(game.aim.x, game.aim.y, game.world)) return;

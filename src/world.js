@@ -39,6 +39,9 @@
       sky: ["#080a1c", "#2a1b48", "#6b2f52", "#c2603f"],
       far: "rgba(24,26,58,0.85)",
       mid: "rgba(15,17,42,0.92)",
+      accent: "#ff3b6b",
+      neon: ["#ff3b6b", "#43e5ff", "#ffb03a"],
+      words: ["ОФИС", "БАНК", "24 ЧАСА", "КОФЕ", "БИРЖА"],
     },
     {
       id: "industrial",
@@ -60,6 +63,9 @@
       sky: ["#050a12", "#123043", "#2f5b5c", "#9e7a3c"],
       far: "rgba(18,34,40,0.85)",
       mid: "rgba(9,20,26,0.92)",
+      accent: "#ffb03a",
+      neon: ["#ffb03a", "#7dffcb", "#ff6a3d"],
+      words: ["ЦЕХ 4", "СКЛАД", "ГРУЗ", "ТЭЦ", "ВЪЕЗД"],
     },
     {
       id: "residential",
@@ -81,6 +87,9 @@
       sky: ["#060814", "#1c1f4a", "#3f3b78", "#7d5f9c"],
       far: "rgba(26,28,64,0.85)",
       mid: "rgba(14,16,40,0.92)",
+      accent: "#8b5cff",
+      neon: ["#8b5cff", "#43e5ff", "#ff8ab0"],
+      words: ["ПРОДУКТЫ", "АПТЕКА", "ПИЦЦА", "САЛОН", "24"],
     },
     {
       id: "oldtown",
@@ -102,6 +111,9 @@
       sky: ["#0b0714", "#3a1d34", "#7d3b3a", "#d08243"],
       far: "rgba(42,28,46,0.85)",
       mid: "rgba(24,15,28,0.92)",
+      accent: "#ff9f4a",
+      neon: ["#ff9f4a", "#ffd76a", "#ff5a7a"],
+      words: ["ТРАКТИРЪ", "ЛАВКА", "ЧАЙ", "ТЕАТРЪ", "БАНЯ"],
     },
     {
       id: "skyline",
@@ -123,6 +135,9 @@
       sky: ["#04060f", "#101b3e", "#2b3f6e", "#5d7bb0"],
       far: "rgba(18,24,52,0.85)",
       mid: "rgba(10,14,34,0.92)",
+      accent: "#43e5ff",
+      neon: ["#43e5ff", "#8b5cff", "#eaf6ff"],
+      words: ["SKY", "ОБЛАКО", "ЛИФТ", "ВЫШЕ", "ЭФИР"],
     },
     {
       id: "site",
@@ -145,6 +160,9 @@
       sky: ["#0a0810", "#2a2038", "#6b4a3a", "#c98a4a"],
       far: "rgba(34,28,26,0.85)",
       mid: "rgba(18,15,16,0.92)",
+      accent: "#ffc46b",
+      neon: ["#ffc46b", "#ff6a3d", "#7dffcb"],
+      words: ["СТРОЙ", "ОПАСНО", "КАСКА", "БЕТОН", "СМЕНА"],
     },
   ];
 
@@ -462,12 +480,15 @@
     var dx = px - z.x;
     var dy = py - z.y;
     var d = Math.hypot(dx, dy) || 1;
+    // Leave the thrower's own body, otherwise the bolt dies inside whatever
+    // he is standing on.
+    var muzzle = z.r + 10;
     this.shots.push({
       hostile: true,
       net: !!isNet,
       src: z,
-      x: z.x,
-      y: z.y,
+      x: z.x + (dx / d) * muzzle,
+      y: z.y + (dy / d) * muzzle,
       vx: (dx / d) * sp,
       vy: (dy / d) * sp,
       r: isNet ? 17 : 8,
@@ -779,6 +800,35 @@
     return prop;
   };
 
+  /** Neon lettering on a facade: pure decoration, but it lights the street. */
+  World.prototype._neonSign = function (b) {
+    var rng = this.rng;
+    var level = LEVELS[this.levelIndex];
+    var vertical = rng.chance(0.55) && b.h > 300;
+    var word = rng.pick(level.words);
+    var hue = rng.pick(level.neon);
+    var size = rng.range(15, 23);
+    var pad = 10;
+    var w = vertical ? size + pad : word.length * size * 0.62 + pad;
+    var h = vertical ? word.length * size * 0.95 + pad : size + pad;
+    var side = rng.chance(0.5) ? 0 : 1;
+    var x = side ? b.x + b.w - w - rng.range(4, 14) : b.x + rng.range(4, 14);
+    var y = b.top + rng.range(30, Math.max(40, b.h * 0.55));
+    this.props.push({
+      type: "neon",
+      x: x,
+      y: y,
+      w: w,
+      h: h,
+      word: word,
+      hue: hue,
+      size: size,
+      vertical: vertical,
+      phase: rng.range(0, U.TAU),
+      broken: rng.chance(0.18),
+    });
+  };
+
   World.prototype._blimp = function (x) {
     var rng = this.rng;
     this.props.push({
@@ -876,8 +926,10 @@
   };
 
   World.prototype._turret = function (b) {
-    var rng = this.rng;
-    var x = b.x + b.w * rng.range(0.2, 0.8);
+    var spot = this.freeRoofSpot(b, 20);
+    // Standing inside a chimney would swallow every bolt it fires.
+    if (!spot) return;
+    var x = spot.x;
     this.hazards.push(
       baseEnemy({
         type: "sentry",
@@ -975,6 +1027,8 @@
       else if (roofKind === "chimney") this._chimney(b);
       else if (roofKind === "spire") this._spire(b);
       else if (roofKind === "sign") this._sign(b);
+
+      if (b.h > 220 && rng.chance(0.55)) this._neonSign(b);
 
       // Facade scaffolding and a tethered balloon do not crowd the roof line.
       if (level.scaffold && rng.chance(level.scaffold)) this._scaffold(b);

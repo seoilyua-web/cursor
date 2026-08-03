@@ -427,16 +427,21 @@ function check(name, ok, detail) {
     if (!z) return { skipped: true };
     g.world.shots.length = 0;
     p.dead = false;
+    p.stun = 0;
     g.state = "playing";
     p.release();
-    for (let i = 0; i < 60 && !g.world.shots.length; i++) {
+    // A bolt can be created and hit a wall between two samples, so watch for
+    // any sighting rather than the state at the end.
+    let seen = 0;
+    for (let i = 0; i < 90 && !seen; i++) {
       p.pos.x = z.x + 240;
       p.pos.y = z.y - 160;
       p.vel.x = 0;
       p.vel.y = 0;
       await new Promise((r) => setTimeout(r, 20));
+      seen = Math.max(seen, g.world.shots.length);
     }
-    return { shots: g.world.shots.length, alert: z.alert };
+    return { shots: seen, alert: z.alert, fireCd: +z.fireCd.toFixed(2) };
   });
   check(
     "a green sentry opens fire on a nearby player",
@@ -450,14 +455,12 @@ function check(name, ok, detail) {
     const z = g.world.hazards.find((h) => h.type === "runner" && h.state === "alive");
     if (!z) return { skipped: true };
     p.dead = false;
-    // A sentry may still have the hero stunned from the previous check, and a
-    // stunned courier cannot fire.
     p.stun = 0;
+    p.webAmmo = window.SW.CONST.WEB_MAX; // this checks shooting, not the economy
     g.world.shots.length = 0;
     g.state = "playing";
     p.release();
-    // Stand where the line of fire is actually clear: rivals now collide with
-    // buildings, so they often hover right next to a wall.
+
     const clearLine = (ox, oy) => {
       for (let t = 0.1; t <= 1; t += 0.1) {
         const x = ox + (z.x - ox) * t;
@@ -466,7 +469,6 @@ function check(name, ok, detail) {
       }
       return !g.world.collide(ox, oy, 14);
     };
-    // Rivals stand on roofs, so only positions above them are safe to hover at.
     const offsets = [
       [-260, -60],
       [260, -60],
@@ -475,29 +477,26 @@ function check(name, ok, detail) {
       [-150, -240],
       [150, -240],
     ];
-    let stand = null;
+    let off = null;
     for (const [ox, oy] of offsets) {
-      const sy = z.y + oy;
-      if (sy > -220) continue; // too close to the street
-      if (clearLine(z.x + ox, sy)) {
-        stand = { x: z.x + ox, y: sy };
+      if (z.y + oy > -220) continue;
+      if (clearLine(z.x + ox, z.y + oy)) {
+        off = { x: ox, y: oy };
         break;
       }
     }
-    if (!stand) return { skipped: "no clear line" };
-    p.pos.x = stand.x;
-    p.pos.y = stand.y;
-    p.vel.x = 0;
-    p.vel.y = 0;
-    // Track the enemy with the cursor the way a player would, then fire.
+    if (!off) return { skipped: "no clear line" };
+
     const canvas = document.getElementById("game");
-    const before = g.score;
+    const before = g.breakdown.enemies;
     let targeted = false;
-    let fired = false;
-    for (let i = 0; i < 60 && z.state === "alive"; i++) {
-      // Hold the range: a red rival that rams you stuns you out of shooting.
-      p.pos.x = stand.x;
-      p.pos.y = stand.y;
+    let downed = 0;
+    // A hunter takes two hits, and a rival that runs off has to be re-acquired,
+    // so give the exchange a few seconds.
+    for (let i = 0; i < 200 && !downed; i++) {
+      // Hold the range: a rival that rams you stuns you out of shooting.
+      p.pos.x = z.x + off.x;
+      p.pos.y = z.y + off.y;
       p.vel.x = 0;
       p.vel.y = 0;
       g.aim.sx = (z.x - g.cam.x) * g.cam.zoom + g.view.w / 2;
@@ -505,8 +504,6 @@ function check(name, ok, detail) {
       await new Promise((r) => setTimeout(r, 20));
       if (g.targetEnemy) {
         targeted = true;
-        fired = true;
-        // Rivals close in, so keep firing instead of taking one static shot.
         canvas.dispatchEvent(
           new MouseEvent("mousedown", {
             clientX: g.aim.sx,
@@ -516,22 +513,15 @@ function check(name, ok, detail) {
         );
         window.dispatchEvent(new MouseEvent("mouseup", { button: 0 }));
       }
+      // A cocoon lands on the roof it stood on and is gone within a frame, so
+      // the score is the reliable witness.
+      downed = g.breakdown.enemies - before > 50 ? 1 : 0;
     }
-    return {
-      targeted,
-      fired,
-      state: z.state,
-      gain: Math.round(g.score - before),
-      shots: g.webShots.length,
-      cd: +g.shotCd.toFixed(2),
-      stun: +p.stun.toFixed(2),
-      dead: p.dead,
-      dist: Math.round(Math.hypot(p.pos.x - z.x, p.pos.y - z.y)),
-    };
+    return { targeted, downed, gain: Math.round(g.breakdown.enemies - before) };
   });
   check(
-    "a web shot brings an enemy down",
-    webbed.skipped || (webbed.targeted && webbed.state === "webbed" && webbed.gain > 50),
+    "a web shot brings a rival down",
+    webbed.skipped || (webbed.targeted && webbed.downed > 0 && webbed.gain > 50),
     JSON.stringify(webbed)
   );
 

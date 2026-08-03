@@ -9,6 +9,8 @@
   Render.quality = 1; // 1 = full, 0 = cheap effects for weak devices
   Render.calm = false; // no shake, no speed lines
   Render.shapes = false; // tell markers apart by shape, not only colour
+  Render.wet = 0; // how much the street reflects, driven by the rain
+  Render.accent = "#ff3b6b";
 
   Render.palette = function (d) {
     var a = d.def.sky;
@@ -93,7 +95,20 @@
 
   Render.parallax = function (ctx, cam, w, h, d) {
     skylineLayer(ctx, cam, w, h, 0.16, 2.7, 190, 140, 420, d.def.far);
+    // Haze between the layers: distance reads as air, not as darkness.
+    var horizon = (0 - cam.y * 0.34) * cam.zoom + h * 0.5;
+    var haze = ctx.createLinearGradient(0, horizon - 700 * cam.zoom, 0, horizon);
+    haze.addColorStop(0, "rgba(90,110,190,0.0)");
+    haze.addColorStop(1, "rgba(90,110,190,0.20)");
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, 0, w, Math.max(0, horizon));
+
     skylineLayer(ctx, cam, w, h, 0.34, 5.3, 240, 200, 620, d.def.mid);
+    var haze2 = ctx.createLinearGradient(0, horizon - 500 * cam.zoom, 0, horizon);
+    haze2.addColorStop(0, "rgba(70,90,170,0.0)");
+    haze2.addColorStop(1, "rgba(70,90,170,0.14)");
+    ctx.fillStyle = haze2;
+    ctx.fillRect(0, 0, w, Math.max(0, horizon));
     if (d.blend > 0.01) {
       ctx.save();
       ctx.globalAlpha = d.blend;
@@ -103,7 +118,43 @@
     }
   };
 
-  Render.ground = function (ctx, cam, w, h) {
+  /** Traffic on the street: light in motion is what makes a city feel alive. */
+  function drawTraffic(ctx, cam, w, h, y, time) {
+    var lane = y + 34 * cam.zoom;
+    for (var i = 0; i < 14; i++) {
+      var speed = 90 + U.hash01(i * 5.1) * 140;
+      var dir = U.hash01(i * 2.3) > 0.5 ? 1 : -1;
+      var span = 4200;
+      var wx = ((U.hash01(i * 7.7) * span + time * speed * dir) % span + span) % span;
+      var worldX = Math.floor(cam.x / span) * span + wx;
+      var sx = (worldX - cam.x) * cam.zoom + w / 2;
+      if (sx < -80 || sx > w + 80) continue;
+      var warm = U.hash01(i * 3.9) > 0.45;
+      var col = warm ? "255,214,150" : "150,220,255";
+      var len = (26 + U.hash01(i * 1.3) * 26) * cam.zoom;
+
+      var g = ctx.createLinearGradient(sx - len * dir, lane, sx + len * dir, lane);
+      g.addColorStop(0, "rgba(" + col + ",0)");
+      g.addColorStop(1, "rgba(" + col + ",0.75)");
+      ctx.fillStyle = g;
+      ctx.fillRect(
+        Math.min(sx, sx + len * dir),
+        lane - 2 * cam.zoom,
+        len,
+        4 * cam.zoom
+      );
+
+      var glow = ctx.createRadialGradient(sx, lane, 1, sx, lane, 26 * cam.zoom);
+      glow.addColorStop(0, "rgba(" + col + ",0.5)");
+      glow.addColorStop(1, "rgba(" + col + ",0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(sx, lane, 26 * cam.zoom, 0, U.TAU);
+      ctx.fill();
+    }
+  }
+
+  Render.ground = function (ctx, cam, w, h, time) {
     var y = (0 - cam.y) * cam.zoom + h * 0.5;
     if (y > h) return;
     var g = ctx.createLinearGradient(0, y - 60 * cam.zoom, 0, h);
@@ -115,6 +166,8 @@
 
     ctx.fillStyle = "rgba(255,120,90,0.5)";
     ctx.fillRect(0, y, w, Math.max(1, 2 * cam.zoom));
+
+    if (Render.quality > 0) drawTraffic(ctx, cam, w, h, y, time || 0);
 
     // Lane dashes and street lamps give a sense of ground speed.
     var spacing = 120;
@@ -151,6 +204,26 @@
       if (b.x + b.w < cam.x - half) continue;
       if (b.x > cam.x + half) break;
       ctx.drawImage(b.sprite, b.x, b.top - b.antennaH);
+
+      // Neon rim: the layer you can actually touch always carries light.
+      ctx.save();
+      ctx.strokeStyle = Render.accent;
+      ctx.globalAlpha = 0.75;
+      ctx.lineWidth = 2;
+      if (Render.quality > 0) {
+        ctx.shadowColor = Render.accent;
+        ctx.shadowBlur = 10;
+      }
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.top + 1);
+      ctx.lineTo(b.x + b.w, b.top + 1);
+      ctx.stroke();
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.moveTo(b.x + 1, b.top);
+      ctx.lineTo(b.x + 1, b.top + Math.min(b.h, 220));
+      ctx.stroke();
+      ctx.restore();
       if (b.setbacks) {
         for (var k = 0; k < b.setbacks.length; k++) {
           var sb = b.setbacks[k];
@@ -449,6 +522,97 @@
       ctx.lineTo(t + 34, p.y + p.h);
     }
     ctx.stroke();
+  }
+
+  function drawNeon(ctx, p, time) {
+    // Measure once: the box has to fit the actual glyphs, not a guess.
+    if (!p.measured) {
+      ctx.save();
+      ctx.font = "700 " + p.size.toFixed(0) + "px Inter, system-ui, sans-serif";
+      if (p.vertical) {
+        var widest = 0;
+        for (var q = 0; q < p.word.length; q++) {
+          widest = Math.max(widest, ctx.measureText(p.word[q]).width);
+        }
+        p.w = widest + 14;
+        p.h = p.word.length * p.size * 1.02 + 12;
+      } else {
+        p.w = ctx.measureText(p.word).width + 16;
+        p.h = p.size * 1.35 + 10;
+      }
+      ctx.restore();
+      p.measured = true;
+    }
+
+    var flick = p.broken
+      ? 0.35 + 0.65 * (Math.sin(time * 17 + p.phase) > 0.2 ? 1 : 0.25)
+      : 0.82 + Math.sin(time * 3.1 + p.phase) * 0.12;
+
+    ctx.save();
+    ctx.globalAlpha = flick;
+
+    // Dark plate so the tubes read against lit windows.
+    ctx.fillStyle = "rgba(6,8,18,0.72)";
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.strokeStyle = p.hue;
+    ctx.lineWidth = 2;
+    if (Render.quality > 0) {
+      ctx.shadowColor = p.hue;
+      ctx.shadowBlur = 14;
+    }
+    ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
+
+    ctx.font = "700 " + p.size.toFixed(0) + "px Inter, system-ui, sans-serif";
+    ctx.fillStyle = "#ffffff";
+    ctx.textBaseline = "middle";
+    if (p.vertical) {
+      ctx.textAlign = "center";
+      for (var i = 0; i < p.word.length; i++) {
+        ctx.fillText(
+          p.word[i],
+          p.x + p.w / 2,
+          p.y + 8 + p.size * 0.5 + i * p.size * 1.02
+        );
+      }
+    } else {
+      ctx.textAlign = "center";
+      ctx.fillText(p.word, p.x + p.w / 2, p.y + p.h / 2 + 1);
+    }
+    ctx.shadowBlur = 0;
+
+    // Reflection smeared down the wet street.
+    if (Render.quality > 0 && Render.wet > 0.02) {
+      var refl = ctx.createLinearGradient(0, C.GROUND_Y - 120, 0, C.GROUND_Y + 90);
+      refl.addColorStop(0, "rgba(0,0,0,0)");
+      refl.addColorStop(1, p.hue);
+      ctx.globalAlpha = 0.18 * Render.wet * flick;
+      ctx.fillStyle = refl;
+      ctx.fillRect(p.x - p.w * 0.4, C.GROUND_Y - 120, p.w * 1.8, 210);
+      ctx.globalAlpha = flick;
+    }
+
+    // Light spilling onto the wall behind the tubes.
+    if (Render.quality > 0) {
+      var g = ctx.createRadialGradient(
+        p.x + p.w / 2,
+        p.y + p.h / 2,
+        4,
+        p.x + p.w / 2,
+        p.y + p.h / 2,
+        Math.max(p.w, p.h) * 1.9
+      );
+      g.addColorStop(0, p.hue);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = 0.16 * flick;
+      ctx.fillStyle = g;
+      ctx.fillRect(
+        p.x - p.w * 2,
+        p.y - p.h * 2,
+        p.w * 5,
+        p.h * 5
+      );
+    }
+    ctx.restore();
   }
 
   function drawCraneLoad(ctx, p) {
@@ -789,7 +953,8 @@
       if (p.type === "crane") {
         drawCrane(ctx, p, time);
         if (p.load) drawCraneLoad(ctx, p);
-      } else if (p.type === "chimney") drawChimney(ctx, p, time);
+      } else if (p.type === "neon") drawNeon(ctx, p, time);
+      else if (p.type === "chimney") drawChimney(ctx, p, time);
       else if (p.type === "spire") drawSpire(ctx, p);
       else if (p.type === "scaffold") drawScaffold(ctx, p);
       else if (p.type === "balloon") drawBalloon(ctx, p);
@@ -1162,6 +1327,41 @@
       ctx.lineTo(cx + ca * (r0 + len), cy + sa * (r0 + len) * 0.7);
       ctx.stroke();
     }
+    ctx.restore();
+  };
+
+  var bloomCv = null;
+  var bloomCtx = null;
+
+  /**
+   * Cheap bloom: shrink the frame, square it so only the bright parts survive,
+   * then add it back blurred. This is what makes neon read as light rather
+   * than as coloured paint.
+   */
+  Render.bloom = function (ctx, source, w, h, strength) {
+    if (Render.quality <= 0 || strength <= 0) return;
+    var bw = Math.max(2, Math.floor(w / 4));
+    var bh = Math.max(2, Math.floor(h / 4));
+    if (!bloomCv) {
+      bloomCv = document.createElement("canvas");
+      bloomCtx = bloomCv.getContext("2d");
+    }
+    if (bloomCv.width !== bw || bloomCv.height !== bh) {
+      bloomCv.width = bw;
+      bloomCv.height = bh;
+    }
+    bloomCtx.globalCompositeOperation = "copy";
+    bloomCtx.drawImage(source, 0, 0, bw, bh);
+    bloomCtx.globalCompositeOperation = "multiply";
+    bloomCtx.drawImage(bloomCv, 0, 0);
+    bloomCtx.drawImage(bloomCv, 0, 0);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = strength;
+    if ("filter" in ctx) ctx.filter = "blur(7px)";
+    ctx.drawImage(bloomCv, 0, 0, w, h);
+    if ("filter" in ctx) ctx.filter = "none";
     ctx.restore();
   };
 
