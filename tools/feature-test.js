@@ -298,6 +298,145 @@ function check(name, ok, detail) {
     JSON.stringify(modes)
   );
 
+  // --- enemies: they exist, they hunt, they shoot, they can be webbed --------
+  const enemies = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const p = g.player;
+    g.world.ensureUpTo(p.pos.x + 22000);
+    const kinds = {};
+    let hostile = 0;
+    for (const z of g.world.hazards) {
+      kinds[z.type] = (kinds[z.type] || 0) + 1;
+      if (z.hostile) hostile++;
+    }
+    return { kinds, hostile, total: g.world.hazards.length };
+  });
+  check(
+    "hostile enemies and turrets are generated",
+    enemies.hostile > 0 && enemies.kinds.turret > 0,
+    JSON.stringify(enemies)
+  );
+
+  const hunt = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const p = g.player;
+    const z = g.world.hazards.find((h) => h.type === "drone" && h.hostile);
+    if (!z) return { skipped: true };
+    p.dead = false;
+    g.state = "playing";
+    p.release();
+    p.pos.x = z.x - 300;
+    p.pos.y = z.y;
+    p.vel.x = 0;
+    p.vel.y = 0;
+    const before = Math.abs(z.x - p.pos.x);
+    for (let i = 0; i < 25; i++) {
+      p.pos.x = z.x - Math.abs(z.x - p.pos.x); // hold the player still
+      p.vel.x = 0;
+      p.vel.y = 0;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    return { before, after: Math.abs(z.x - p.pos.x), alert: z.alert };
+  });
+  check(
+    "hostile drone closes in on the player",
+    hunt.skipped || (hunt.after < hunt.before && hunt.alert > 0.2),
+    JSON.stringify(hunt)
+  );
+
+  const turret = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const p = g.player;
+    const z = g.world.hazards.find((h) => h.type === "turret");
+    if (!z) return { skipped: true };
+    g.world.shots.length = 0;
+    p.dead = false;
+    g.state = "playing";
+    p.release();
+    for (let i = 0; i < 60 && !g.world.shots.length; i++) {
+      p.pos.x = z.x + 240;
+      p.pos.y = z.y - 160;
+      p.vel.x = 0;
+      p.vel.y = 0;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    return { shots: g.world.shots.length, alert: z.alert };
+  });
+  check(
+    "turret opens fire on a nearby player",
+    turret.skipped || turret.shots > 0,
+    JSON.stringify(turret)
+  );
+
+  const webbed = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const p = g.player;
+    const z = g.world.hazards.find((h) => h.type === "drone" && h.state === "alive");
+    if (!z) return { skipped: true };
+    p.dead = false;
+    g.state = "playing";
+    p.release();
+    p.pos.x = z.x - 260;
+    p.pos.y = z.y;
+    p.vel.x = 0;
+    p.vel.y = 0;
+    // Track the enemy with the cursor the way a player would, then fire.
+    const canvas = document.getElementById("game");
+    const before = g.score;
+    let targeted = false;
+    let fired = false;
+    for (let i = 0; i < 60 && z.state === "alive"; i++) {
+      p.vel.x = 0;
+      p.vel.y = 0;
+      g.aim.sx = (z.x - g.cam.x) * g.cam.zoom + g.view.w / 2;
+      g.aim.sy = (z.y - g.cam.y) * g.cam.zoom + g.view.h / 2;
+      await new Promise((r) => setTimeout(r, 20));
+      if (g.targetEnemy) {
+        targeted = true;
+        if (!fired) {
+          fired = true;
+          canvas.dispatchEvent(
+            new MouseEvent("mousedown", {
+              clientX: g.aim.sx,
+              clientY: g.aim.sy,
+              button: 0,
+            })
+          );
+          window.dispatchEvent(new MouseEvent("mouseup", { button: 0 }));
+        }
+      }
+    }
+    return { targeted, state: z.state, gain: Math.round(g.score - before) };
+  });
+  check(
+    "a web shot brings an enemy down",
+    webbed.skipped || (webbed.targeted && webbed.state === "webbed" && webbed.gain > 50),
+    JSON.stringify(webbed)
+  );
+
+  const shotHit = await page.evaluate(async () => {
+    const g = window.SWGame;
+    const p = g.player;
+    p.dead = false;
+    p.stun = 0;
+    g.state = "playing";
+    g.world.shots.length = 0;
+    g.world.shots.push({
+      hostile: true,
+      x: p.pos.x + 30,
+      y: p.pos.y,
+      vx: -400,
+      vy: 0,
+      r: 8,
+      life: 2,
+    });
+    for (let i = 0; i < 25 && p.stun <= 0; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    return { stun: +p.stun.toFixed(2) };
+  });
+  check("enemy fire stuns the player", shotHit.stun > 0, JSON.stringify(shotHit));
+
   await page.screenshot({ path: "/tmp/feature-end.png" });
   await browser.close();
 

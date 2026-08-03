@@ -436,15 +436,153 @@
     ctx.restore();
   }
 
+  function drawTurret(ctx, z) {
+    ctx.save();
+    ctx.translate(z.x, z.y);
+    ctx.fillStyle = "#242a40";
+    ctx.beginPath();
+    ctx.arc(0, 4, 13, Math.PI, 0);
+    ctx.fill();
+    ctx.fillRect(-14, 4, 28, 10);
+    ctx.save();
+    ctx.rotate(z.angle);
+    ctx.fillStyle = "#39405e";
+    ctx.fillRect(0, -4, 30, 8);
+    ctx.fillStyle = "#11162a";
+    ctx.fillRect(24, -3, 8, 6);
+    ctx.restore();
+    var lit = z.alert > 0.15;
+    ctx.fillStyle = lit ? "#ff4a6b" : "rgba(255,120,140,0.35)";
+    ctx.beginPath();
+    ctx.arc(0, -3, 3.6, 0, U.TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawWebbed(ctx, z, time) {
+    var r = z.r + 5;
+    ctx.save();
+    ctx.translate(z.x, z.y);
+    ctx.rotate(Math.sin(time * 6 + z.phase) * 0.25);
+    ctx.fillStyle = "rgba(238,244,255,0.92)";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r, r * 1.15, 0, 0, U.TAU);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(150,175,210,0.9)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for (var i = -2; i <= 2; i++) {
+      ctx.moveTo(-r, i * r * 0.42);
+      ctx.lineTo(r, i * r * 0.42 + r * 0.2);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawAlert(ctx, z, time) {
+    if (!z.hostile || z.alert < 0.12) return;
+    var pulse = 0.5 + Math.sin(time * 8) * 0.5;
+    var g = ctx.createRadialGradient(z.x, z.y, 2, z.x, z.y, z.r * 3.4);
+    g.addColorStop(0, "rgba(255,70,100," + (0.28 * z.alert * (0.5 + pulse * 0.5)).toFixed(3) + ")");
+    g.addColorStop(1, "rgba(255,70,100,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(z.x, z.y, z.r * 3.4, 0, U.TAU);
+    ctx.fill();
+  }
+
   Render.hazards = function (ctx, world, cam, w, time) {
     var half = w / (2 * cam.zoom) + 300;
     ctx.save();
     for (var i = 0; i < world.hazards.length; i++) {
       var z = world.hazards[i];
       if (z.x < cam.x - half || z.x > cam.x + half) continue;
+      if (z.state === "webbed") {
+        drawWebbed(ctx, z, time);
+        continue;
+      }
+      drawAlert(ctx, z, time);
       if (z.type === "heli") drawHeli(ctx, z, time);
+      else if (z.type === "turret") drawTurret(ctx, z);
       else drawDrone(ctx, z, time);
     }
+    ctx.restore();
+  };
+
+  /** Web glob in flight, with the thread trailing back to the hand. */
+  Render.webShots = function (ctx, shots) {
+    ctx.save();
+    ctx.lineCap = "round";
+    for (var i = 0; i < shots.length; i++) {
+      var s = shots[i];
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(s.ox, s.oy);
+      ctx.lineTo(s.x, s.y);
+      ctx.stroke();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 5.5, 0, U.TAU);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(180,220,255,0.8)";
+      ctx.lineWidth = 1.2;
+      for (var k = 0; k < 4; k++) {
+        var a = (k / 4) * U.TAU + s.life * 6;
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(s.x + Math.cos(a) * 9, s.y + Math.sin(a) * 9);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  };
+
+  Render.enemyShots = function (ctx, shots) {
+    ctx.save();
+    for (var i = 0; i < shots.length; i++) {
+      var s = shots[i];
+      var g = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, 22);
+      g.addColorStop(0, "rgba(255,150,90,0.95)");
+      g.addColorStop(1, "rgba(255,90,60,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 22, 0, U.TAU);
+      ctx.fill();
+      ctx.fillStyle = "#ffe0b0";
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 4, 0, U.TAU);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,150,90,0.55)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - s.vx * 0.03, s.y - s.vy * 0.03);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  /** Brackets around the enemy the next web shot will hit. */
+  Render.target = function (ctx, z, time) {
+    var r = z.r + 12 + Math.sin(time * 5) * 2;
+    ctx.save();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2.2;
+    ctx.globalAlpha = 0.9;
+    for (var i = 0; i < 4; i++) {
+      var a = Math.PI / 4 + (i * Math.PI) / 2;
+      var cx = z.x + Math.cos(a) * r;
+      var cy = z.y + Math.sin(a) * r;
+      ctx.beginPath();
+      ctx.moveTo(cx - Math.cos(a) * 6, cy - Math.sin(a) * 6);
+      ctx.lineTo(cx, cy);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.arc(z.x, z.y, r, 0, U.TAU);
+    ctx.stroke();
     ctx.restore();
   };
 

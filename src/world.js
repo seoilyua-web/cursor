@@ -161,6 +161,7 @@
     this.buildings = [];
     this.props = [];
     this.hazards = [];
+    this.shots = [];
     this.boxes = [];
     this.orbs = [];
     this.startX = 0;
@@ -182,6 +183,7 @@
     this.buildings.length = 0;
     this.props.length = 0;
     this.hazards.length = 0;
+    this.shots.length = 0;
     this.boxes.length = 0;
     this.orbs.length = 0;
     this.nextX = -400;
@@ -258,16 +260,148 @@
       }
     }
 
-    for (var h = 0; h < this.hazards.length; h++) {
+    this._updateEnemies(dt, playerX, arguments.length > 2 ? arguments[2] : 0);
+    this._updateShots(dt);
+  };
+
+  var HUNT_RANGE = 560;
+  var FIRE_RANGE = 780;
+
+  World.prototype._updateEnemies = function (dt, px, py) {
+    for (var h = this.hazards.length - 1; h >= 0; h--) {
       var z = this.hazards[h];
-      z.x += z.vx * dt;
       z.phase += dt;
+
+      if (z.state === "webbed") {
+        // Wrapped: it drops out of the sky and is gone on impact.
+        z.fall += C.GRAVITY * 0.55 * dt;
+        z.y += z.fall * dt;
+        z.x += z.vx * 0.3 * dt;
+        if (z.y > C.GROUND_Y - 6 || this.collide(z.x, z.y, z.r * 0.6)) {
+          this.hazards.splice(h, 1);
+        }
+        continue;
+      }
+
+      var dx = px - z.x;
+      var dy = py - z.y;
+      var dist = Math.hypot(dx, dy);
+
       if (z.type === "drone") {
-        z.y = z.baseY + Math.sin(z.phase * 1.5) * z.amp;
+        if (z.hostile && dist < HUNT_RANGE) {
+          // Lock on and close the distance, but never faster than a swing.
+          z.alert = Math.min(1, z.alert + dt * 2.5);
+          var speed = 230 * C.PACE;
+          z.vx = U.damp(z.vx, (dx / dist) * speed, 1.6, dt);
+          z.y = U.damp(z.y, py, 1.1, dt);
+          z.baseY = z.y;
+        } else {
+          z.alert = Math.max(0, z.alert - dt);
+          z.y = z.baseY + Math.sin(z.phase * 1.5) * z.amp;
+        }
+        z.x += z.vx * dt;
       } else if (z.type === "heli") {
+        z.x += z.vx * dt;
         z.y = z.baseY + Math.sin(z.phase * 0.8) * 26;
+        if (z.hostile && dist < FIRE_RANGE) {
+          z.alert = Math.min(1, z.alert + dt * 1.6);
+          z.fireCd -= dt;
+          if (z.fireCd <= 0) {
+            z.fireCd = 2.2;
+            this._fire(z, px, py, 360);
+          }
+        } else {
+          z.alert = Math.max(0, z.alert - dt * 0.6);
+        }
+      } else if (z.type === "turret") {
+        if (dist < FIRE_RANGE && py < C.GROUND_Y - 20) {
+          z.alert = Math.min(1, z.alert + dt * 2);
+          z.angle = Math.atan2(dy, dx);
+          z.fireCd -= dt;
+          if (z.fireCd <= 0) {
+            z.fireCd = 1.7;
+            this._fire(z, px, py, 420);
+          }
+        } else {
+          z.alert = Math.max(0, z.alert - dt);
+          z.angle = U.damp(z.angle, -1.2, 2, dt);
+        }
       }
     }
+  };
+
+  /** Enemy shot, aimed slightly ahead of where the player is now. */
+  World.prototype._fire = function (z, px, py, speed) {
+    var sp = speed * C.PACE;
+    var dx = px - z.x;
+    var dy = py - z.y;
+    var d = Math.hypot(dx, dy) || 1;
+    this.shots.push({
+      hostile: true,
+      x: z.x,
+      y: z.y,
+      vx: (dx / d) * sp,
+      vy: (dy / d) * sp,
+      r: 8,
+      life: 3.2,
+    });
+  };
+
+  World.prototype._updateShots = function (dt) {
+    for (var i = this.shots.length - 1; i >= 0; i--) {
+      var s = this.shots[i];
+      s.life -= dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      if (
+        s.life <= 0 ||
+        s.y > C.GROUND_Y ||
+        this.collide(s.x, s.y, s.r * 0.5)
+      ) {
+        this.shots.splice(i, 1);
+      }
+    }
+  };
+
+  /** Nearest live enemy to a point, used by the aiming reticle. */
+  World.prototype.enemyNear = function (x, y, radius) {
+    var best = null;
+    var bestD = radius;
+    for (var i = 0; i < this.hazards.length; i++) {
+      var z = this.hazards[i];
+      if (z.state !== "alive") continue;
+      var d = Math.hypot(x - z.x, y - z.y) - z.r;
+      if (d < bestD) {
+        bestD = d;
+        best = z;
+      }
+    }
+    return best;
+  };
+
+  World.prototype.enemyAt = function (x, y, r) {
+    for (var i = 0; i < this.hazards.length; i++) {
+      var z = this.hazards[i];
+      if (z.state !== "alive") continue;
+      var rr = z.r + r;
+      var dx = x - z.x;
+      var dy = y - z.y;
+      if (dx * dx + dy * dy < rr * rr) return z;
+    }
+    return null;
+  };
+
+  /** A web hit: strong enemies need a second one. Returns true when downed. */
+  World.prototype.webEnemy = function (z) {
+    z.hp -= 1;
+    if (z.hp > 0) {
+      z.alert = 0;
+      z.fireCd = Math.max(z.fireCd, 1.2);
+      return false;
+    }
+    z.state = "webbed";
+    z.fall = 0;
+    return true;
   };
 
   // ---------------------------------------------------------------------------
@@ -391,36 +525,74 @@
     });
   };
 
+  function baseEnemy(e) {
+    e.state = "alive";
+    e.hp = e.hp || 1;
+    e.fireCd = 0;
+    e.alert = 0;
+    e.fall = 0;
+    return e;
+  }
+
   World.prototype._hazard = function (x) {
     var rng = this.rng;
-    if (rng.chance(0.45)) {
+    if (rng.chance(0.42)) {
       var y = -rng.range(430, 980);
-      this.hazards.push({
-        type: "heli",
-        x: x,
-        y: y,
-        baseY: y,
-        r: 30,
-        vx: -rng.range(70, 130) * C.PACE,
-        phase: rng.range(0, U.TAU),
-        beam: rng.range(240, 420),
-      });
+      this.hazards.push(
+        baseEnemy({
+          type: "heli",
+          x: x,
+          y: y,
+          baseY: y,
+          r: 30,
+          vx: -rng.range(70, 130) * C.PACE,
+          phase: rng.range(0, U.TAU),
+          beam: rng.range(240, 420),
+          hostile: true,
+          hp: 2,
+          contact: true,
+        })
+      );
     } else {
       var n = rng.int(1, 3);
       for (var i = 0; i < n; i++) {
         var by = -rng.range(240, 820);
-        this.hazards.push({
-          type: "drone",
-          x: x + i * rng.range(90, 220),
-          y: by,
-          baseY: by,
-          amp: rng.range(24, 70),
-          r: 15,
-          vx: -rng.range(14, 46) * C.PACE,
-          phase: rng.range(0, U.TAU),
-        });
+        this.hazards.push(
+          baseEnemy({
+            type: "drone",
+            x: x + i * rng.range(90, 220),
+            y: by,
+            baseY: by,
+            amp: rng.range(24, 70),
+            r: 15,
+            vx: -rng.range(14, 46) * C.PACE,
+            phase: rng.range(0, U.TAU),
+            // Two thirds of the swarm actively hunt; the rest just drift.
+            hostile: rng.chance(0.65),
+            contact: true,
+          })
+        );
       }
     }
+  };
+
+  World.prototype._turret = function (b) {
+    var rng = this.rng;
+    var x = b.x + b.w * rng.range(0.2, 0.8);
+    this.hazards.push(
+      baseEnemy({
+        type: "turret",
+        x: x,
+        y: b.top - 14,
+        baseY: b.top - 14,
+        r: 16,
+        vx: 0,
+        phase: 0,
+        hostile: true,
+        contact: false,
+        angle: -1.2,
+      })
+    );
   };
 
   World.prototype._spawnOrbs = function (b, gap) {
@@ -478,6 +650,7 @@
         this._hazard(b.x + rng.range(300, 900));
         this.nextHazardX = b.x + rng.range(2200, 4200);
       }
+      if (this.hazardsOn && h > 300 && rng.chance(0.12)) this._turret(b);
 
       var gap = rng.range(district.gap[0], district.gap[1]);
       this._spawnOrbs(b, gap);
@@ -509,6 +682,9 @@
     }
     for (i = this.hazards.length - 1; i >= 0; i--) {
       if (this.hazards[i].x + 200 < x) this.hazards.splice(i, 1);
+    }
+    for (i = this.shots.length - 1; i >= 0; i--) {
+      if (this.shots[i].x + 200 < x) this.shots.splice(i, 1);
     }
   };
 
@@ -679,10 +855,25 @@
   };
 
   /** Moving obstacles: helicopters, drones and swinging crane loads. */
+  World.prototype.shotAt = function (x, y, r) {
+    for (var i = this.shots.length - 1; i >= 0; i--) {
+      var s = this.shots[i];
+      var rr = s.r + r;
+      var dx = x - s.x;
+      var dy = y - s.y;
+      if (dx * dx + dy * dy < rr * rr) {
+        this.shots.splice(i, 1);
+        return s;
+      }
+    }
+    return null;
+  };
+
   World.prototype.hazardAt = function (x, y, r) {
     var i;
     for (i = 0; i < this.hazards.length; i++) {
       var z = this.hazards[i];
+      if (z.state !== "alive" || z.contact === false) continue;
       var rr = z.r + r;
       var dx = x - z.x;
       var dy = y - z.y;

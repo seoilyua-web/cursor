@@ -166,6 +166,9 @@
     aim: { sx: 0, sy: 0, x: 0, y: 0 },
     input: { moveX: 0, reel: 0, jump: false },
     particles: [],
+    webShots: [],
+    shotCd: 0,
+    targetEnemy: null,
     trail: [],
     preview: [],
     previewAnchor: null,
@@ -297,6 +300,9 @@
     game.cam.zoom = 1;
     game.cam.shake = 0;
     game.particles.length = 0;
+    game.webShots.length = 0;
+    game.shotCd = 0;
+    game.targetEnemy = null;
     game.trail.length = 0;
     game.preview.length = 0;
     game.distance = 0;
@@ -601,6 +607,72 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Shooting web at enemies
+  // ---------------------------------------------------------------------------
+
+  var _hand = { x: 0, y: 0 };
+
+  function fireWebShot(tx, ty) {
+    var p = game.player;
+    if (game.shotCd > 0 || p.dead || p.stun > 0) return false;
+    var dx = tx - p.pos.x;
+    var dy = ty - p.pos.y;
+    var d = Math.hypot(dx, dy);
+    if (d < 1) return false;
+    game.shotCd = C.WEB_SHOT_CD;
+    p.handPos(_hand);
+    game.webShots.push({
+      x: _hand.x,
+      y: _hand.y,
+      vx: (dx / d) * C.WEB_SHOT_SPEED,
+      vy: (dy / d) * C.WEB_SHOT_SPEED,
+      life: C.WEB_SHOT_LIFE,
+      ox: p.pos.x,
+      oy: p.pos.y,
+    });
+    p.missDir = { x: dx / d, y: dy / d };
+    SW.audio.thwip();
+    return true;
+  }
+
+  function updateWebShots(dt) {
+    game.shotCd -= dt;
+    for (var i = game.webShots.length - 1; i >= 0; i--) {
+      var s = game.webShots[i];
+      s.life -= dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+
+      var enemy = game.world.enemyAt(s.x, s.y, C.WEB_SHOT_R);
+      if (enemy) {
+        game.webShots.splice(i, 1);
+        var downed = game.world.webEnemy(enemy);
+        burst(s.x, s.y, downed ? 12 : 6, "#ffffff", 170 * C.PACE);
+        if (downed) {
+          var pts = Math.round(
+            (enemy.type === "heli" ? 220 : enemy.type === "turret" ? 160 : 120) *
+              multiplier()
+          );
+          game.score += pts;
+          bumpCombo(1);
+          ring(s.x, s.y, "rgba(255,255,255,0.9)");
+          popup(enemy.x, enemy.y - 26, "СБИТ +" + pts);
+          SW.audio.ping(Math.min(game.combo, 12));
+        } else {
+          popup(enemy.x, enemy.y - 26, "ПОПАЛ");
+          SW.audio.thud();
+        }
+        continue;
+      }
+
+      if (s.life <= 0 || s.y > C.GROUND_Y || game.world.collide(s.x, s.y, 3)) {
+        burst(s.x, s.y, 3, "#dfe8ff", 80 * C.PACE);
+        game.webShots.splice(i, 1);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Contracts: a reason to go somewhere specific instead of just forward
   // ---------------------------------------------------------------------------
 
@@ -718,9 +790,13 @@
     var p = game.player;
     p.update(dt, game.input, game.world, game);
 
+    updateWebShots(dt);
+
     if (!p.dead) {
       var hz = game.world.hazardAt(p.pos.x, p.pos.y, C.PLAYER_R);
       if (hz) p.hit(hz, game);
+      var incoming = game.world.shotAt(p.pos.x, p.pos.y, C.PLAYER_R);
+      if (incoming) p.hit(incoming, game);
 
       collectOrbs();
       styleScore(dt);
@@ -738,7 +814,7 @@
       }
     }
 
-    game.world.update(dt, p.pos.x);
+    game.world.update(dt, p.pos.x, p.pos.y);
     game.world.ensureUpTo(game.cam.x + 3600);
     game.world.prune(game.cam.x - 2200);
     updateParticles(dt);
@@ -810,6 +886,20 @@
   // Tutorial
   // ---------------------------------------------------------------------------
 
+  var ENEMY_HINT_KEY = "swing-enemy-hint-v1";
+
+  function maybeEnemyHint() {
+    if (game.enemyHintShown || load(ENEMY_HINT_KEY, "0") === "1") return;
+    game.enemyHintShown = true;
+    store(ENEMY_HINT_KEY, "1");
+    el.tutor.textContent = "Враг на прицеле — стреляй паутиной, чтобы сбить";
+    el.tutor.classList.remove("hidden");
+    setTimeout(function () {
+      if (!game.tutorStep) el.tutor.classList.add("hidden");
+      else updateTutor();
+    }, 4500);
+  }
+
   var TUTOR_TEXT = {
     1: "Зажми мышь и выстрели паутину вверх-вперёд",
     2: "Отпусти в нижней точке дуги — так сохраняется скорость",
@@ -876,6 +966,11 @@
     SW.Render.props(ctx, game.world, cam, w, game.time);
     SW.Render.orbs(ctx, game.world, cam, w, game.time);
     SW.Render.hazards(ctx, game.world, cam, w, game.time);
+    SW.Render.enemyShots(ctx, game.world.shots);
+    SW.Render.webShots(ctx, game.webShots);
+    if (game.targetEnemy && game.state === "playing") {
+      SW.Render.target(ctx, game.targetEnemy, game.time);
+    }
 
     if (game.state === "playing" && !p.dead) {
       if (settings.preview && game.previewAnchor) {
@@ -929,8 +1024,16 @@
   function updateAim() {
     game.aimHit = null;
     game.previewAnchor = null;
+    game.targetEnemy = null;
     var p = game.player;
-    if (game.state !== "playing" || p.dead || p.web === "attached") return;
+    if (game.state !== "playing" || p.dead) return;
+    // An enemy under the cursor turns the web into a weapon, in any direction.
+    game.targetEnemy = game.world.enemyNear(game.aim.x, game.aim.y, 90);
+    if (game.targetEnemy) {
+      maybeEnemyHint();
+      return;
+    }
+    if (p.web === "attached") return;
     // The reticle shows the anchor magnetism will actually choose.
     game.aimHit = p.aimAssist(game.aim.x, game.aim.y, game.world);
     if (!game.aimHit || !settings.preview) return;
@@ -1033,6 +1136,10 @@
 
   function fireOrKick() {
     var p = game.player;
+    if (game.targetEnemy) {
+      fireWebShot(game.targetEnemy.x, game.targetEnemy.y);
+      return;
+    }
     if (p.shoot(game.aim.x, game.aim.y, game.world)) return;
     if (p.canKick()) p.kickToward(game.aim.x, game.aim.y, game);
   }

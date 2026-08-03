@@ -168,7 +168,7 @@ function fly(seed, seconds) {
       }
     }
     player.update(dt, input, world, game);
-    world.update(dt, player.pos.x);
+    world.update(dt, player.pos.x, player.pos.y);
     world.ensureUpTo(player.pos.x + 3000);
   }
   return Math.round((player.pos.x - world.startX) / C.PIXELS_PER_METER);

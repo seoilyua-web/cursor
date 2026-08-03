@@ -111,7 +111,7 @@ for (; t < seconds && !player.dead; t += dt) {
   }
 
   player.update(dt, input, world, game);
-  world.update(dt, player.pos.x);
+  world.update(dt, player.pos.x, player.pos.y);
   world.ensureUpTo(player.pos.x + 3000);
 
   if (process.env.DENSE ? t > Number(process.env.T0 || 0) && t < Number(process.env.T1 || 1e9) && Math.abs(t % 0.1) < dt : Math.abs(t % 3) < dt) {

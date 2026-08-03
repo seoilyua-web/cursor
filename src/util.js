@@ -110,6 +110,7 @@
       DRAG_FREE: 0.09,
       DRAG_ATTACHED: 0.035,
       HIT_KNOCKBACK: 620,
+      WEB_SHOT_SPEED: 1500,
     },
     FIXED: {
       MAX_ROPE: 560,
@@ -128,6 +129,9 @@
       STUN_TIME: 0.45,
       LOW_ALTITUDE: 170,
       GRAZE_DIST: 34,
+      WEB_SHOT_R: 13,
+      WEB_SHOT_CD: 0.22,
+      WEB_SHOT_LIFE: 0.75,
     },
   };
 
