@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>ПАУТИНА — гравитационный раннер</title>
+    <meta name="theme-color" content="#0a0a18" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23d92448'/%3E%3Cpath d='M16 2v28M2 16h28M6 6l20 20M26 6L6 26' stroke='%23111' stroke-width='1.5'/%3E%3C/svg%3E"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700;800&display=swap"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game"></canvas>
+
+      <div id="hud" class="hidden">
+        <div class="hud-left">
+          <div class="stat big">
+            <span id="hud-distance">0</span><span class="unit">м</span>
+          </div>
+          <div class="stat">
+            <span class="label">счёт</span><span id="hud-score">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">доставлено</span><span id="hud-deliveries">0</span>
+          </div>
+          <div id="hud-shift" class="shift">
+            <span class="label">план</span><b id="shift-plan">0/0</b>
+            <span class="label">финиш</span><b id="shift-left">0</b>
+          </div>
+          <div id="hud-web" class="web">
+            <span class="label">паутина</span>
+            <b id="web-value">0</b>
+            <i id="web-fill"></i>
+          </div>
+        </div>
+        <div class="hud-right">
+          <div class="stat">
+            <span class="label">рекорд</span><span id="hud-best">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">скорость</span
+            ><span id="hud-speed">0</span><span class="unit">км/ч</span>
+          </div>
+        </div>
+        <div id="hud-perf" class="perf hidden"></div>
+        <div id="hud-combo" class="combo hidden">x1.0</div>
+        <div id="hud-chain" class="chain hidden">серия 0</div>
+        <div id="hud-popups"></div>
+        <div id="hud-bottom">
+          <div id="hud-district" class="district">Деловой центр</div>
+          <div id="hud-weather" class="weather"></div>
+          <div id="hud-contract" class="contract hidden">
+            <span class="contract-label">доставка</span>
+            <b id="contract-timer">0.0</b>
+          </div>
+          <div id="hud-dash" class="dash ready">
+            <span class="dash-key">Shift</span>
+            <span class="dash-label">рывок</span>
+            <i id="dash-fill"></i>
+          </div>
+        </div>
+        <div id="hud-hint" class="hint">удерживай мышь — паутина, отпусти — полёт</div>
+        <div id="hud-tutor" class="tutor hidden"></div>
+      </div>
+
+      <div id="touch" class="hidden">
+        <div class="pad pad-left">
+          <button class="tbtn" data-act="reelIn">▲</button>
+          <div class="pad-row">
+            <button class="tbtn" data-act="left">◀</button>
+            <button class="tbtn" data-act="right">▶</button>
+          </div>
+          <button class="tbtn" data-act="reelOut">▼</button>
+        </div>
+        <div class="pad pad-right">
+          <button class="tbtn wide" data-act="jump">толчок</button>
+          <button class="tbtn wide accent" data-act="dash">рывок</button>
+        </div>
+      </div>
+
+      <div id="overlay">
+        <div id="start-card" class="card">
+          <h1>ПАУТИНА</h1>
+          <p class="tagline">
+            Ты курьер. Груз ждёт на крыше, адрес — через квартал, а всё, что у
+            тебя есть, — паутина и гравитация.
+          </p>
+          <ul class="controls">
+            <li><b>Задача</b><span>забрать груз и донести до площадки</span></li>
+            <li><b>Пицца</b><span>запас паутины: каждый кусок — пять нитей</span></li>
+            <li><b>Мышь / палец</b><span>прицел</span></li>
+            <li><b>Зажать</b><span>выстрелить паутину</span></li>
+            <li><b>Отпустить</b><span>сорваться в полёт</span></li>
+            <li><b>A / D</b><span>раскачка и управление в воздухе</span></li>
+            <li><b>W / S</b><span>подтянуть нить, лезть по стене</span></li>
+            <li>
+              <b>Пробел</b><span>прыжок, отталкивание от стены, авто-паутина</span>
+            </li>
+            <li>
+              <b>Клик у стены</b><span>оттолкнуться в сторону прицела</span>
+            </li>
+            <li>
+              <b>Shift</b><span>рывок — спасает из безнадёжного падения</span>
+            </li>
+            <li><b>E</b><span>подтянуться к якорю по нити</span></li>
+            <li><b>R</b><span>заново</span><b>M</b><span>звук</span></li>
+          </ul>
+          <div class="levels">
+            <div class="tasks-title">Карта смены</div>
+            <div id="level-list"></div>
+            <p id="level-hint" class="fine left"></p>
+          </div>
+          <div class="tasks">
+            <div class="tasks-title">Задачи дня</div>
+            <div id="start-tasks"></div>
+          </div>
+          <button id="btn-play" class="btn">Играть</button>
+          <button id="btn-settings" class="btn ghost">Настройки</button>
+          <label class="daily">
+            <input type="checkbox" id="opt-daily" />
+            <span>Сид дня — один и тот же город для всех</span>
+          </label>
+          <p class="fine">
+            Стена не убивает — она отбирает скорость. Убивает только асфальт.
+          </p>
+        </div>
+
+        <div id="dead-card" class="card hidden">
+          <h2 id="dead-title">Приземление вышло так себе</h2>
+          <div class="results">
+            <div class="result">
+              <span class="label">дистанция</span>
+              <b><span id="res-distance">0</span> м</b>
+            </div>
+            <div class="result">
+              <span class="label">доставки</span>
+              <b id="res-deliveries">0</b>
+            </div>
+            <div class="result">
+              <span class="label">счёт</span>
+              <b id="res-score">0</b>
+            </div>
+            <div class="result">
+              <span class="label">рекорд</span>
+              <b id="res-best">0</b>
+            </div>
+          </div>
+          <div id="res-stars" class="stars"></div>
+          <div id="res-new" class="new-best hidden">новый рекорд</div>
+          <div id="res-breakdown" class="breakdown"></div>
+          <div class="tasks">
+            <div class="tasks-title">Задачи дня</div>
+            <div id="dead-tasks"></div>
+          </div>
+          <button id="btn-retry" class="btn">Ещё раз</button>
+          <p class="fine">или нажми R</p>
+        </div>
+
+        <div id="pause-card" class="card hidden">
+          <h2>Пауза</h2>
+          <p class="fine">P — продолжить</p>
+        </div>
+
+        <div id="settings-card" class="card hidden">
+          <h2>Настройки</h2>
+          <div class="setting">
+            <label for="opt-pace">Темп <b id="val-pace">0.70</b></label>
+            <input
+              type="range"
+              id="opt-pace"
+              min="0.4"
+              max="1.2"
+              step="0.05"
+              value="0.7"
+            />
+            <p class="fine left">
+              Меняет только скорость времени: дуги, прыжки и дальность нити
+              остаются прежними.
+            </p>
+          </div>
+          <div class="setting">
+            <label for="opt-volume">Громкость <b id="val-volume">50</b></label>
+            <input
+              type="range"
+              id="opt-volume"
+              min="0"
+              max="100"
+              step="5"
+              value="50"
+            />
+          </div>
+          <div class="setting toggles">
+            <label><input type="checkbox" id="opt-endless" /> Бесконечная смена: без плана и финиша</label>
+            <label><input type="checkbox" id="opt-hazards" checked /> Враги и опасности</label>
+            <label><input type="checkbox" id="opt-weather" checked /> Погода</label>
+            <label><input type="checkbox" id="opt-tutor" checked /> Обучение</label>
+            <label><input type="checkbox" id="opt-low" /> Низкое качество (для слабых устройств)</label>
+            <label><input type="checkbox" id="opt-perf" /> Показывать время кадра</label>
+            <label><input type="checkbox" id="opt-calm" /> Спокойный режим: без тряски и полос</label>
+            <label><input type="checkbox" id="opt-shapes" /> Различать подсказки формой, а не цветом</label>
+          </div>
+
+          <div class="setting">
+            <label>Клавиши</label>
+            <div id="binds" class="binds"></div>
+            <p class="fine left">
+              Нажмите на клавишу в списке и затем на новую. Раскладка не важна —
+              учитывается физическая клавиша.
+            </p>
+          </div>
+          <button id="btn-settings-close" class="btn">Готово</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="src/util.js"></script>
+    <script src="src/audio.js"></script>
+    <script src="src/world.js"></script>
+    <script src="src/player.js"></script>
+    <script src="src/render.js"></script>
+    <script src="src/game.js"></script>
+  </body>
+</html>
