@@ -154,11 +154,11 @@
   var BIND_NAMES = {
     left: "Раскачка влево",
     right: "Раскачка вправо",
-    reelIn: "Подтянуть нить / вверх по стене",
-    reelOut: "Отпустить нить / вниз",
+    reelIn: "Подтянуть верёвку / вверх по стене",
+    reelOut: "Отпустить верёвку / вниз",
     jump: "Прыжок и толчок от стены",
     dash: "Рывок",
-    zip: "Подтянуться к якорю",
+    zip: "Подтянуться к якорю по верёвке",
   };
 
   var binds = {};
@@ -476,7 +476,7 @@
     el.best.textContent = game.best;
     var LABELS = {
       distance: "дистанция",
-      pizzas: "пицца",
+      pizzas: "колчан",
       style: "стиль",
       perfect: "точные отпускания",
       contracts: "доставка",
@@ -722,7 +722,7 @@
       game.webWarned = false;
       ring(o.x, o.y, "rgba(255,196,107,0.9)");
       burst(o.x, o.y, 6, "#ffc46b", 180);
-      popup(o.x, o.y - 26, gained ? "+" + gained + " паутины" : "запас полон", true);
+      popup(o.x, o.y - 26, gained ? "+" + gained + " стрел" : "запас полон", true);
       SW.audio.ping(Math.min(game.combo - 1, 14));
     }
   }
@@ -771,11 +771,11 @@
   var CHALLENGE_KEY = "swing-daily-tasks-v1";
 
   var CHALLENGE_POOL = [
-    { id: "enemies", text: "Сбей %n врагов паутиной", min: 4, max: 7, bonus: 900 },
-    { id: "pizzas", text: "Собери %n пицц", min: 14, max: 26, bonus: 700 },
+    { id: "enemies", text: "Сбей %n врагов стрелами", min: 4, max: 7, bonus: 900 },
+    { id: "pizzas", text: "Собери %n колчанов", min: 14, max: 26, bonus: 700 },
     { id: "contracts", text: "Доставь %n груза", min: 3, max: 5, bonus: 1200 },
     { id: "rescues", text: "Спаси %n человек", min: 1, max: 3, bonus: 1100 },
-    { id: "perfect", text: "Отпусти нить точно %n раз", min: 5, max: 10, bonus: 800 },
+    { id: "perfect", text: "Отпусти верёвку точно %n раз", min: 5, max: 10, bonus: 800 },
     { id: "chain", text: "Слепи серию из %n качаний без касания", min: 5, max: 9, bonus: 900 },
   ];
 
@@ -1358,7 +1358,7 @@
     if (game.enemyHintShown || load(ENEMY_HINT_KEY, "0") === "1") return;
     game.enemyHintShown = true;
     store(ENEMY_HINT_KEY, "1");
-    el.tutor.textContent = "Враг на прицеле — стреляй паутиной, чтобы сбить";
+    el.tutor.textContent = "Враг на прицеле — стреляй стрелой, чтобы сбить";
     el.tutor.classList.remove("hidden");
     setTimeout(function () {
       if (!game.tutorStep) el.tutor.classList.add("hidden");
@@ -1367,7 +1367,7 @@
   }
 
   var TUTOR_TEXT = {
-    1: "Зажми мышь и выстрели паутину вверх-вперёд",
+    1: "Зажми мышь и выстрели стрелу с верёвкой вверх-вперёд",
     2: "Отпусти в нижней точке дуги — так сохраняется скорость",
     3: "Забери груз на крыше и донеси до светящейся площадки",
   };
@@ -1498,7 +1498,7 @@
       }
       if (nearest) {
         worldToScreen(nearest.x, nearest.y, _pt);
-        SW.Render.marker(ctx, w, h, _pt.x, _pt.y, "#ffc46b", "пицца");
+        SW.Render.marker(ctx, w, h, _pt.x, _pt.y, "#ffc46b", "колчан");
       }
     }
 
@@ -1682,7 +1682,7 @@
     if (dryCd > 0) return;
     dryCd = 1.2;
     SW.audio.warn();
-    popup(game.player.pos.x, game.player.pos.y - 34, "ПАУТИНА КОНЧИЛАСЬ", true);
+    popup(game.player.pos.x, game.player.pos.y - 34, "СТРЕЛЫ КОНЧИЛИСЬ", true);
   }
 
   /** Where a rival will be when the web gets there. */

@@ -735,18 +735,51 @@
     ctx.save();
     ctx.translate(z.x, z.y);
     ctx.rotate(Math.sin(time * 6 + z.phase) * 0.25);
-    ctx.fillStyle = "rgba(238,244,255,0.92)";
+    ctx.fillStyle = "rgba(60,45,30,0.55)";
     ctx.beginPath();
     ctx.ellipse(0, 0, r, r * 1.15, 0, 0, U.TAU);
     ctx.fill();
-    ctx.strokeStyle = "rgba(150,175,210,0.9)";
-    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = "rgba(180,150,100,0.95)";
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
     for (var i = -2; i <= 2; i++) {
       ctx.moveTo(-r, i * r * 0.42);
       ctx.lineTo(r, i * r * 0.42 + r * 0.2);
     }
+    for (var j = -2; j <= 2; j++) {
+      ctx.moveTo(j * r * 0.38, -r);
+      ctx.lineTo(j * r * 0.38 + r * 0.15, r);
+    }
     ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawArrowAt(ctx, x, y, angle, scale) {
+    var s = scale || 1;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.strokeStyle = "#b8a080";
+    ctx.lineWidth = 1.8 * s;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-10 * s, 0);
+    ctx.lineTo(4 * s, 0);
+    ctx.stroke();
+    ctx.fillStyle = "#c8d0d8";
+    ctx.beginPath();
+    ctx.moveTo(4 * s, 0);
+    ctx.lineTo(-1 * s, -3 * s);
+    ctx.lineTo(-1 * s, 3 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#8a9098";
+    ctx.beginPath();
+    ctx.moveTo(6 * s, 0);
+    ctx.lineTo(10 * s, -2.5 * s);
+    ctx.lineTo(10 * s, 2.5 * s);
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
   }
 
@@ -895,31 +928,20 @@
     ctx.restore();
   };
 
-  /** Web glob in flight, with the thread trailing back to the hand. */
+  /** Arrow with trailing rope, fired at enemies. */
   Render.webShots = function (ctx, shots) {
     ctx.save();
     ctx.lineCap = "round";
     for (var i = 0; i < shots.length; i++) {
       var s = shots[i];
-      ctx.strokeStyle = "rgba(255,255,255,0.5)";
-      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = "rgba(180,150,100,0.65)";
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
       ctx.moveTo(s.ox, s.oy);
       ctx.lineTo(s.x, s.y);
       ctx.stroke();
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, 5.5, 0, U.TAU);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(180,220,255,0.8)";
-      ctx.lineWidth = 1.2;
-      for (var k = 0; k < 4; k++) {
-        var a = (k / 4) * U.TAU + s.life * 6;
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y);
-        ctx.lineTo(s.x + Math.cos(a) * 9, s.y + Math.sin(a) * 9);
-        ctx.stroke();
-      }
+      var ang = Math.atan2(s.vy, s.vx);
+      drawArrowAt(ctx, s.x, s.y, ang, 1.1);
     }
     ctx.restore();
   };
@@ -949,30 +971,16 @@
         ctx.restore();
         continue;
       }
-      // Rival web bolt: same stuff as the hero's, tinted to their colours.
+      // Rival bolt: small arrow with a rope tail.
       var tint = s.src && s.src.color === "green" ? "150,255,200" : "255,170,170";
-      var g = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, 18);
-      g.addColorStop(0, "rgba(" + tint + ",0.9)");
-      g.addColorStop(1, "rgba(" + tint + ",0)");
-      ctx.fillStyle = g;
+      ctx.strokeStyle = "rgba(" + tint + ",0.55)";
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 18, 0, U.TAU);
-      ctx.fill();
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, 4.5, 0, U.TAU);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(" + tint + ",0.6)";
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      for (var t = 0; t < 4; t++) {
-        var a = (t / 4) * U.TAU + s.spin;
-        ctx.moveTo(s.x, s.y);
-        ctx.lineTo(s.x + Math.cos(a) * 9, s.y + Math.sin(a) * 9);
-      }
-      ctx.moveTo(s.x, s.y);
-      ctx.lineTo(s.x - s.vx * 0.03, s.y - s.vy * 0.03);
+      ctx.moveTo(s.x - s.vx * 0.04, s.y - s.vy * 0.04);
+      ctx.lineTo(s.x, s.y);
       ctx.stroke();
+      var ang = Math.atan2(s.vy, s.vx);
+      drawArrowAt(ctx, s.x, s.y, ang, 0.95);
     }
     ctx.restore();
   };
@@ -1063,7 +1071,7 @@
     ctx.restore();
   };
 
-  /** Pizza slices: the courier's fuel, and therefore the web supply. */
+  /** Quiver pickups: refills the arrow supply. */
   Render.pizzas = function (ctx, world, cam, w, time) {
     var half = w / (2 * cam.zoom) + 60;
     ctx.save();
@@ -1088,37 +1096,32 @@
 
       ctx.save();
       ctx.translate(o.x, y);
-      ctx.rotate(Math.sin(time * o.spin + o.phase) * 0.5 - 0.4);
+      ctx.rotate(Math.sin(time * o.spin + o.phase) * 0.15);
 
-      // Crust arc plus the cheese wedge, drawn as one slice.
-      ctx.fillStyle = "#e8a83c";
-      ctx.beginPath();
-      ctx.moveTo(0, 13);
-      ctx.lineTo(-11, -11);
-      ctx.quadraticCurveTo(0, -17, 11, -11);
-      ctx.closePath();
-      ctx.fill();
+      ctx.fillStyle = "#4a3018";
+      ctx.fillRect(-9, -4, 18, 22);
+      ctx.strokeStyle = "#8b5a2b";
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(-9, -4, 18, 22);
+      ctx.fillStyle = "#6b4423";
+      ctx.fillRect(-7, -2, 14, 3);
 
-      ctx.fillStyle = "#ffd98a";
-      ctx.beginPath();
-      ctx.moveTo(0, 10);
-      ctx.lineTo(-8.5, -8);
-      ctx.quadraticCurveTo(0, -12.5, 8.5, -8);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = "#d63a2f";
-      ctx.beginPath();
-      ctx.arc(-3.4, -4.6, 2.2, 0, U.TAU);
-      ctx.arc(3.6, -5.4, 2, 0, U.TAU);
-      ctx.arc(0.2, 1.4, 2.1, 0, U.TAU);
-      ctx.fill();
-
-      ctx.fillStyle = "rgba(120,90,40,0.55)";
-      ctx.beginPath();
-      ctx.arc(-5.2, -9.4, 1.1, 0, U.TAU);
-      ctx.arc(5.4, -9.8, 1, 0, U.TAU);
-      ctx.fill();
+      for (var ai = 0; ai < 4; ai++) {
+        var ax = -5 + ai * 3.2;
+        ctx.strokeStyle = "#9aa0aa";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(ax, -1);
+        ctx.lineTo(ax + (ai - 1.5) * 0.8, -18 - ai * 1.5);
+        ctx.stroke();
+        ctx.fillStyle = "#8a9098";
+        ctx.beginPath();
+        ctx.moveTo(ax + (ai - 1.5) * 0.8, -18 - ai * 1.5);
+        ctx.lineTo(ax + (ai - 1.5) * 0.8 - 1.5, -15 - ai * 1.5);
+        ctx.lineTo(ax + (ai - 1.5) * 0.8 + 1.5, -15 - ai * 1.5);
+        ctx.closePath();
+        ctx.fill();
+      }
       ctx.restore();
     }
     ctx.restore();
@@ -1321,6 +1324,7 @@
     ctx.restore();
   };
 
+  /** Rope line with a stuck arrow — the archer's swing tether. */
   Render.web = function (ctx, player) {
     var hand = player.handPos({ x: 0, y: 0 });
     ctx.save();
@@ -1328,13 +1332,9 @@
 
     if (player.web === "miss" && player.missDir) {
       var len = Math.sin(player.webT * Math.PI) * 240;
-      ctx.globalAlpha = 0.5 * (1 - player.webT);
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(hand.x, hand.y);
-      ctx.lineTo(hand.x + player.missDir.x * len, hand.y + player.missDir.y * len);
-      ctx.stroke();
+      var missAng = Math.atan2(player.missDir.y, player.missDir.x);
+      ctx.globalAlpha = 0.55 * (1 - player.webT);
+      drawArrowAt(ctx, hand.x + player.missDir.x * len, hand.y + player.missDir.y * len, missAng, 1);
       ctx.restore();
       return;
     }
@@ -1358,12 +1358,13 @@
       player.web === "attached" ? Math.max(0, player.ropeLen - dist) : 0;
     var mx = (hand.x + ex) / 2;
     var my = (hand.y + ey) / 2 + Math.min(slack * 0.45, 60);
+    var anchorAng = Math.atan2(dy, dx);
 
-    ctx.strokeStyle = "rgba(255,255,255,0.95)";
-    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = "rgba(180,150,100,0.92)";
+    ctx.lineWidth = 2.2;
     if (Render.quality > 0) {
-      ctx.shadowColor = "rgba(160,220,255,0.95)";
-      ctx.shadowBlur = 14;
+      ctx.shadowColor = "rgba(200,170,110,0.6)";
+      ctx.shadowBlur = 8;
     }
     ctx.beginPath();
     ctx.moveTo(hand.x, hand.y);
@@ -1371,18 +1372,7 @@
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    if (player.web === "attached") {
-      ctx.strokeStyle = "rgba(255,255,255,0.55)";
-      ctx.lineWidth = 1.4;
-      var r = 7;
-      ctx.beginPath();
-      for (var k = 0; k < 6; k++) {
-        var a = (k / 6) * U.TAU;
-        ctx.moveTo(ex, ey);
-        ctx.lineTo(ex + Math.cos(a) * r, ey + Math.sin(a) * r);
-      }
-      ctx.stroke();
-    }
+    drawArrowAt(ctx, ex, ey, anchorAng, player.web === "flying" ? 1.15 : 1.25);
     ctx.restore();
   };
 

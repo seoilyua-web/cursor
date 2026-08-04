@@ -741,10 +741,50 @@
   // Drawing
   // ---------------------------------------------------------------------------
 
-  var SHELL = "#f2c313";
-  var SHELL_DARK = "#c08f07";
-  var FRAME = "#16171d";
-  var PACK = "#262a33";
+  var TUNIC = "#2d5a42";
+  var TUNIC_DARK = "#1a3828";
+  var LEATHER = "#6b4423";
+  var LEATHER_DARK = "#4a2f18";
+  var SKIN = "#c9956a";
+  var CLOAK = "#1a2438";
+  var BOW_WOOD = "#8b5a2b";
+  var BOW_STRING = "#d8d0c0";
+
+  function drawBow(ctx, cx, cy, angle, pull) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle + Math.PI / 2);
+    ctx.strokeStyle = BOW_WOOD;
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(0, 0, 13, -0.85, 0.85);
+    ctx.stroke();
+    var notch = pull * 7;
+    ctx.strokeStyle = BOW_STRING;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(Math.sin(-0.85) * 13, -Math.cos(-0.85) * 13);
+    ctx.lineTo(-notch, 0);
+    ctx.lineTo(Math.sin(0.85) * 13, -Math.cos(0.85) * 13);
+    ctx.stroke();
+    if (pull > 0.15) {
+      ctx.strokeStyle = "#b8b0a0";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(-notch - 2, 0);
+      ctx.lineTo(-notch - 14, 0);
+      ctx.stroke();
+      ctx.fillStyle = "#8a9098";
+      ctx.beginPath();
+      ctx.moveTo(-notch - 14, 0);
+      ctx.lineTo(-notch - 19, -2.2);
+      ctx.lineTo(-notch - 19, 2.2);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 
   Player.prototype.handPos = function (out) {
     var ux = 0;
@@ -759,12 +799,12 @@
       ux = this.missDir.x;
       uy = this.missDir.y;
     }
-    out.x = this.pos.x + ux * 11;
-    out.y = this.pos.y + uy * 11;
+    out.x = this.pos.x + ux * 14;
+    out.y = this.pos.y + uy * 14;
     return out;
   };
 
-  /** Status light: the machine reports its own state. */
+  /** Status light: quiver running low, stun, cargo. */
   Player.prototype.statusColor = function () {
     if (this.stun > 0) return "#ff5a5a";
     if (this.webAmmo <= 4) return "#ff8a5a";
@@ -807,6 +847,12 @@
     var reach = this.pose.reach;
     var status = this.statusColor();
     var lit = this.stun > 0 ? (Math.sin(this.stun * 50) > 0 ? 1 : 0.2) : 1;
+    var bowAngle =
+      this.web === "attached" || this.web === "flying"
+        ? Math.atan2(this.anchor.y - this.pos.y, this.anchor.x - this.pos.x)
+        : this.facing > 0
+        ? -0.55
+        : -2.6;
 
     ctx.save();
     ctx.translate(this.pos.x, this.pos.y);
@@ -815,130 +861,122 @@
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    // --- cargo pack, behind the chassis -----------------------------------
-    ctx.fillStyle = PACK;
-    ctx.fillRect(-16, -8, 11, 15);
-    ctx.strokeStyle = SHELL;
-    ctx.lineWidth = 1.6;
-    ctx.strokeRect(-16, -8, 11, 15);
-    ctx.beginPath();
-    ctx.moveTo(-16, -2.5);
-    ctx.lineTo(-5, -2.5);
-    ctx.stroke();
-    // antenna, trailing with speed
-    ctx.strokeStyle = "rgba(255,255,255,0.55)";
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.moveTo(-12, -9);
-    ctx.quadraticCurveTo(-15 - this.pose.lean * 6, -18, -19 - this.pose.lean * 9, -21);
-    ctx.stroke();
+    // --- quiver on the back -------------------------------------------------
+    ctx.fillStyle = LEATHER_DARK;
+    ctx.fillRect(-15, -6, 9, 18);
+    ctx.strokeStyle = LEATHER;
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(-15, -6, 9, 18);
+    for (var qi = 0; qi < 3; qi++) {
+      ctx.strokeStyle = "#9aa0aa";
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(-13 + qi * 2.5, -4);
+      ctx.lineTo(-11 + qi * 2.5, -16 - qi);
+      ctx.stroke();
+    }
     ctx.fillStyle = status;
-    ctx.globalAlpha = lit;
+    ctx.globalAlpha = lit * 0.85;
     ctx.beginPath();
-    ctx.arc(-19 - this.pose.lean * 9, -21, 1.9, 0, U.TAU);
+    ctx.arc(-10.5, -17, 1.6, 0, U.TAU);
     ctx.fill();
     ctx.globalAlpha = 1;
     if (this.carrying) {
       ctx.fillStyle = "rgba(120,240,255,0.9)";
-      ctx.fillRect(-14.5, -12, 8, 4.2);
+      ctx.fillRect(-13.5, -10, 7, 5);
     }
 
-    // --- legs ---------------------------------------------------------------
+    // --- legs / boots -------------------------------------------------------
     var legSpread = U.lerp(6, 9, this.pose.leg);
     if (this.onRoof) {
-      limb(ctx, -1, 5, run * 5, 11, run * 9, 17, 4.5, SHELL_DARK, FRAME);
-      limb(ctx, 1, 5, -run * 5, 11, -run * 9, 17, 4.5, SHELL_DARK, FRAME);
+      limb(ctx, -1, 5, run * 5, 11, run * 9, 17, 4.2, TUNIC_DARK, LEATHER);
+      limb(ctx, 1, 5, -run * 5, 11, -run * 9, 17, 4.2, TUNIC_DARK, LEATHER);
     } else if (this.onWall) {
-      limb(ctx, -1, 5, -5, 10, -9, 14, 4.5, SHELL_DARK, FRAME);
-      limb(ctx, 1, 5, -2, 11, -2, 17, 4.5, SHELL_DARK, FRAME);
+      limb(ctx, -1, 5, -5, 10, -9, 14, 4.2, TUNIC_DARK, LEATHER);
+      limb(ctx, 1, 5, -2, 11, -2, 17, 4.2, TUNIC_DARK, LEATHER);
     } else {
-      limb(ctx, -1, 5, 4 + swing, 11, legSpread + swing * 2, 16, 4.5, SHELL_DARK, FRAME);
-      limb(ctx, 1, 5, -4, 11, -legSpread + swing, 15, 4.5, SHELL_DARK, FRAME);
+      limb(ctx, -1, 5, 4 + swing, 11, legSpread + swing * 2, 16, 4.2, TUNIC_DARK, LEATHER);
+      limb(ctx, 1, 5, -4, 11, -legSpread + swing, 15, 4.2, TUNIC_DARK, LEATHER);
     }
+    ctx.fillStyle = LEATHER_DARK;
+    ctx.fillRect(-6.5, 14, 5.5, 3.5);
+    ctx.fillRect(1.5, 14, 5.5, 3.5);
 
-    // --- chassis ------------------------------------------------------------
-    ctx.fillStyle = SHELL;
+    // --- cloak + tunic ------------------------------------------------------
+    ctx.fillStyle = CLOAK;
     ctx.beginPath();
-    ctx.moveTo(-5, -7);
-    ctx.lineTo(5, -7);
-    ctx.lineTo(4.5, 5);
-    ctx.lineTo(-4.5, 5);
+    ctx.moveTo(-8, -5);
+    ctx.lineTo(8, -5);
+    ctx.lineTo(10, 8);
+    ctx.lineTo(-10, 8);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = FRAME;
-    ctx.lineWidth = 1;
+    ctx.fillStyle = TUNIC;
+    ctx.beginPath();
+    ctx.moveTo(-5.5, -6);
+    ctx.lineTo(5.5, -6);
+    ctx.lineTo(4.5, 6);
+    ctx.lineTo(-4.5, 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = LEATHER;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(-5, 0);
+    ctx.lineTo(5, 0);
     ctx.stroke();
 
-    ctx.fillStyle = FRAME;
-    ctx.fillRect(-5, -3.2, 10, 1.9);
-    ctx.fillRect(-4.8, 0.6, 9.6, 1.9);
-
-    // chest indicator
     ctx.fillStyle = status;
     ctx.globalAlpha = lit;
     ctx.beginPath();
-    ctx.arc(0.6, -5, 1.9, 0, U.TAU);
+    ctx.arc(0, -2.5, 1.8, 0, U.TAU);
     ctx.fill();
     ctx.globalAlpha = 1;
 
     // --- arms ---------------------------------------------------------------
-    var reachX = U.lerp(9, 2, reach);
-    var reachY = U.lerp(2, -17, reach);
-    limb(ctx, 3, -6, reachX * 0.6 + 2, reachY * 0.5 - 2, reachX, reachY, 3.6, SHELL_DARK, FRAME);
+    var reachX = U.lerp(10, 3, reach);
+    var reachY = U.lerp(0, -16, reach);
+    var pull = this.web === "flying" ? 0.35 + this.webT * 0.45 : reach * 0.55;
+    limb(ctx, 3, -5, reachX * 0.55 + 1, reachY * 0.45 - 1, reachX, reachY, 3.4, SKIN, LEATHER);
     if (this.onWall) {
-      limb(ctx, -3, -6, -8, -9, -12, -12, 3.6, SHELL_DARK, FRAME);
+      limb(ctx, -3, -5, -8, -8, -12, -11, 3.4, SKIN, LEATHER);
     } else if (this.onRoof) {
-      limb(ctx, -3, -6, -run * 5, -2, -run * 9, 3, 3.6, SHELL_DARK, FRAME);
+      limb(ctx, -3, -5, -run * 5, -1, -run * 9, 4, 3.4, SKIN, LEATHER);
     } else {
-      limb(ctx, -3, -6, -8, -2 + swing, -11 - swing * 2, 2 + swing * 2, 3.6, SHELL_DARK, FRAME);
+      var drawX = -8 - pull * 4;
+      var drawY = -4 + swing * 0.5;
+      limb(ctx, -3, -5, drawX * 0.6, drawY, drawX, drawY - 2, 3.4, SKIN, LEATHER);
     }
 
-    // web emitter on the working wrist
-    ctx.fillStyle = FRAME;
-    ctx.beginPath();
-    ctx.arc(reachX, reachY, 2.1, 0, U.TAU);
-    ctx.fill();
+    drawBow(ctx, reachX, reachY, bowAngle, pull);
 
-    // --- head ---------------------------------------------------------------
-    ctx.fillStyle = SHELL;
+    // --- head / hood --------------------------------------------------------
+    ctx.fillStyle = CLOAK;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-6, -18.5, 12, 10, 3);
-    else ctx.rect(-6, -18.5, 12, 10);
+    ctx.arc(0, -14, 7.5, 0, U.TAU);
     ctx.fill();
-    ctx.fillStyle = FRAME;
-    ctx.fillRect(-6, -18.5, 12, 1.8);
-
-    // visor
-    ctx.fillStyle = FRAME;
+    ctx.fillStyle = SKIN;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-4.6, -15.6, 9.4, 4.4, 2);
-    else ctx.rect(-4.6, -15.6, 9.4, 4.4);
+    ctx.arc(1.5, -13.5, 4.2, 0, U.TAU);
+    ctx.fill();
+    ctx.fillStyle = "#1a1820";
+    ctx.beginPath();
+    ctx.arc(2.8, -14, 1.1, 0, U.TAU);
+    ctx.arc(4.2, -13.6, 0.9, 0, U.TAU);
     ctx.fill();
     if (SW.Render && SW.Render.quality > 0) {
-      var vg = ctx.createRadialGradient(0, -13.4, 1, 0, -13.4, 18);
+      var vg = ctx.createRadialGradient(2, -13, 1, 2, -13, 14);
       vg.addColorStop(0, status);
       vg.addColorStop(1, "rgba(0,0,0,0)");
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha = 0.28 * lit;
+      ctx.globalAlpha = 0.22 * lit;
       ctx.fillStyle = vg;
       ctx.beginPath();
-      ctx.arc(0, -13.4, 18, 0, U.TAU);
+      ctx.arc(2, -13, 14, 0, U.TAU);
       ctx.fill();
       ctx.restore();
     }
-    ctx.globalAlpha = lit;
-    ctx.fillStyle = status;
-    if (SW.Render && SW.Render.quality > 0) {
-      ctx.shadowColor = status;
-      ctx.shadowBlur = 14;
-    }
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-3.4, -14.8, 7, 2.6, 1.3);
-    else ctx.rect(-3.4, -14.8, 7, 2.6);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1;
 
     ctx.restore();
   };

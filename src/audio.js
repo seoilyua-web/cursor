@@ -97,22 +97,31 @@
     return buf;
   };
 
+  /** Bow twang when a rope-arrow is loosed. */
   Audio.prototype.thwip = function () {
     if (!this.ctx || this.muted) return;
     var t = this.ctx.currentTime;
-    var src = this.ctx.createBufferSource();
-    src.buffer = this._noiseBuffer(0.14);
-    var filter = this.ctx.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.Q.value = 6;
-    filter.frequency.setValueAtTime(2600, t);
-    filter.frequency.exponentialRampToValueAtTime(600, t + 0.13);
+    var osc = this.ctx.createOscillator();
     var gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.5, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
-    src.connect(filter).connect(gain).connect(this.master);
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(320, t);
+    osc.frequency.exponentialRampToValueAtTime(90, t + 0.08);
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    osc.connect(gain).connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.11);
+    var src = this.ctx.createBufferSource();
+    src.buffer = this._noiseBuffer(0.06);
+    var filter = this.ctx.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = 1200;
+    var ng = this.ctx.createGain();
+    ng.gain.setValueAtTime(0.18, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    src.connect(filter).connect(ng).connect(this.master);
     src.start(t);
-    src.stop(t + 0.15);
+    src.stop(t + 0.08);
   };
 
   Audio.prototype.ping = function (step) {
@@ -177,7 +186,7 @@
     osc.stop(t + 0.18);
   };
 
-  /** Two descending blips: the spinneret is running dry. */
+  /** Two descending blips: the quiver is almost empty. */
   Audio.prototype.warn = function () {
     if (!this.ctx || this.muted) return;
     var t = this.ctx.currentTime;

@@ -6,11 +6,11 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
-    <title>ПАУТИНА — гравитационный раннер</title>
+    <title>ЛУЧНИК — гравитационный раннер</title>
     <meta name="theme-color" content="#0a0a18" />
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23d92448'/%3E%3Cpath d='M16 2v28M2 16h28M6 6l20 20M26 6L6 26' stroke='%23111' stroke-width='1.5'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%231a3828'/%3E%3Cpath d='M8 24 Q16 8 24 24' stroke='%238b5a2b' stroke-width='2' fill='none'/%3E%3Cline x1='8' y1='24' x2='24' y2='24' stroke='%23d8d0c0' stroke-width='1'/%3E%3Cpath d='M24 24 L28 22 L28 26 Z' fill='%238a9098'/%3E%3C/svg%3E"
     />
     <link
       rel="stylesheet"
@@ -38,7 +38,7 @@
             <span class="label">финиш</span><b id="shift-left">0</b>
           </div>
           <div id="hud-web" class="web">
-            <span class="label">паутина</span>
+            <span class="label">стрелы</span>
             <b id="web-value">0</b>
             <i id="web-fill"></i>
           </div>
@@ -69,7 +69,7 @@
             <i id="dash-fill"></i>
           </div>
         </div>
-        <div id="hud-hint" class="hint">удерживай мышь — паутина, отпусти — полёт</div>
+        <div id="hud-hint" class="hint">удерживай мышь — выстрел, отпусти — полёт по верёвке</div>
         <div id="hud-tutor" class="tutor hidden"></div>
       </div>
 
@@ -90,21 +90,21 @@
 
       <div id="overlay">
         <div id="start-card" class="card">
-          <h1>ПАУТИНА</h1>
+          <h1>ЛУЧНИК</h1>
           <p class="tagline">
-            Ты курьер. Груз ждёт на крыше, адрес — через квартал, а всё, что у
-            тебя есть, — паутина и гравитация.
+            Ты курьер-лучник. Груз ждёт на крыше, адрес — через квартал, а всё,
+            что у тебя есть, — лук, стрелы с верёвками и гравитация.
           </p>
           <ul class="controls">
             <li><b>Задача</b><span>забрать груз и донести до площадки</span></li>
-            <li><b>Пицца</b><span>запас паутины: каждый кусок — пять нитей</span></li>
+            <li><b>Колчан</b><span>запас стрел: каждый — пять выстрелов</span></li>
             <li><b>Мышь / палец</b><span>прицел</span></li>
-            <li><b>Зажать</b><span>выстрелить паутину</span></li>
+            <li><b>Зажать</b><span>выстрелить стрелу с верёвкой</span></li>
             <li><b>Отпустить</b><span>сорваться в полёт</span></li>
             <li><b>A / D</b><span>раскачка и управление в воздухе</span></li>
-            <li><b>W / S</b><span>подтянуть нить, лезть по стене</span></li>
+            <li><b>W / S</b><span>подтянуть верёвку, лезть по стене</span></li>
             <li>
-              <b>Пробел</b><span>прыжок, отталкивание от стены, авто-паутина</span>
+              <b>Пробел</b><span>прыжок, отталкивание от стены, авто-выстрел</span>
             </li>
             <li>
               <b>Клик у стены</b><span>оттолкнуться в сторону прицела</span>
@@ -112,7 +112,7 @@
             <li>
               <b>Shift</b><span>рывок — спасает из безнадёжного падения</span>
             </li>
-            <li><b>E</b><span>подтянуться к якорю по нити</span></li>
+            <li><b>E</b><span>подтянуться к якорю по верёвке</span></li>
             <li><b>R</b><span>заново</span><b>M</b><span>звук</span></li>
           </ul>
           <div class="levels">
@@ -184,7 +184,7 @@
               value="0.7"
             />
             <p class="fine left">
-              Меняет только скорость времени: дуги, прыжки и дальность нити
+              Меняет только скорость времени: дуги, прыжки и дальность выстрела
               остаются прежними.
             </p>
           </div>
