@@ -51,6 +51,7 @@ function emptyWorld() {
   return {
     weather: { wind: 0, rain: 0, fog: 0 },
     collide: () => null,
+    collidePlayer: () => null,
     roofUnder: () => null,
     clearBelow: () => 4000,
     raycast: () => null,
