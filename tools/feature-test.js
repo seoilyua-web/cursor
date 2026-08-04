@@ -37,10 +37,12 @@ function check(name, ok, detail) {
       const props = {};
       for (const p of g.world.props) props[p.type] = (props[p.type] || 0) + 1;
       const heights = g.world.buildings.map((b) => b.h);
+      const antennas = g.world.buildings.filter((b) => b.antennaH > 0).length;
       out.push({
         id: levels[i].id,
         name: levels[i].name,
         buildings: g.world.buildings.length,
+        antennas,
         avgHeight: Math.round(heights.reduce((a, b) => a + b, 0) / heights.length),
         props,
         hazards: g.world.hazards.length,
@@ -48,24 +50,43 @@ function check(name, ok, detail) {
     }
     return out;
   });
-  const signature = (m) => Object.keys(m.props).sort().join(",");
-  const uniqueMixes = new Set(maps.map(signature)).size;
+  const profile = (m) => {
+    const band = m.avgHeight < 450 ? "low" : m.avgHeight < 750 ? "mid" : "high";
+    const specials =
+      Object.keys(m.props)
+        .filter((k) => k !== "neon" && k !== "blimp")
+        .sort()
+        .join("+") || "plain";
+    return `${band}:${specials}`;
+  };
+  const uniqueProfiles = new Set(maps.map(profile)).size;
   const heightSpread =
     Math.max(...maps.map((m) => m.avgHeight)) -
     Math.min(...maps.map((m) => m.avgHeight));
   check(
     "six levels with different anchors and architecture",
-    maps.length === 6 && uniqueMixes >= 5 && heightSpread > 300,
-    maps.map((m) => `${m.id}:${signature(m)}`).join(" | ")
+    maps.length === 6 && uniqueProfiles >= 5 && heightSpread > 300,
+    maps.map((m) => `${m.id}:${profile(m)} h${m.avgHeight}`).join(" | ")
   );
   check(
-    "special structures appear only on their own level",
-    maps.find((m) => m.id === "skyline").props.bridge > 0 &&
-      maps.find((m) => m.id === "site").props.scaffold > 0 &&
-      maps.find((m) => m.id === "oldtown").props.spire > 0 &&
-      maps.find((m) => m.id === "industrial").props.chimney > 0 &&
-      !maps.find((m) => m.id === "centre").props.bridge,
-    JSON.stringify(maps.map((m) => m.props))
+    "roofs stay flat — only masts and facade props, no roof clutter",
+    maps.every(function (m) {
+      return (
+        !m.props.chimney &&
+        !m.props.crane &&
+        !m.props.spire &&
+        !m.props.sign &&
+        !m.props.balloon
+      );
+    }) &&
+      maps.some(function (m) {
+        return m.props.scaffold > 0 || m.props.wire > 0 || m.props.bridge > 0;
+      }) && maps.every(function (m) {
+        return m.antennas > 0;
+      }),
+    JSON.stringify(maps.map(function (m) {
+      return { id: m.id, props: m.props, antennas: m.antennas };
+    }))
   );
 
   // --- the picker starts the chosen map ---------------------------------------
