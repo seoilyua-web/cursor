@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Баннер для Авито — шаблон</title>
+    <title>Шаблоны баннеров Авито</title>
     <style>
       :root {
         --bg: #0f1419;
@@ -13,255 +13,205 @@
         --muted: #8b9bb4;
         --accent: #3b82f6;
       }
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
       body {
         margin: 0;
         font-family: "Segoe UI", system-ui, sans-serif;
         background: var(--bg);
         color: var(--text);
-        min-height: 100vh;
       }
       .layout {
         display: grid;
-        grid-template-columns: minmax(280px, 360px) 1fr;
+        grid-template-columns: minmax(300px, 380px) 1fr;
         gap: 20px;
         padding: 20px;
-        max-width: 1400px;
+        max-width: 1500px;
         margin: 0 auto;
       }
-      @media (max-width: 900px) {
-        .layout {
-          grid-template-columns: 1fr;
-        }
+      @media (max-width: 960px) {
+        .layout { grid-template-columns: 1fr; }
       }
-      h1 {
-        font-size: 1.15rem;
-        margin: 0 0 4px;
-      }
-      .sub {
-        color: var(--muted);
-        font-size: 0.85rem;
-        margin: 0 0 16px;
-        line-height: 1.4;
-      }
+      h1 { font-size: 1.2rem; margin: 0 0 4px; }
+      .sub { color: var(--muted); font-size: 0.85rem; margin: 0 0 16px; line-height: 1.45; }
       .panel {
         background: var(--panel);
         border: 1px solid var(--border);
         border-radius: 12px;
-        padding: 16px;
+        padding: 14px;
+        margin-bottom: 12px;
       }
       .panel h2 {
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: var(--muted);
         margin: 0 0 10px;
       }
-      .panel + .panel {
-        margin-top: 12px;
-      }
-      label {
-        display: block;
-        font-size: 0.8rem;
-        color: var(--muted);
-        margin-bottom: 4px;
-      }
-      input[type="text"],
-      textarea,
-      select {
+      label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 3px; }
+      input[type="text"], textarea, select {
         width: 100%;
         background: #0d1218;
         border: 1px solid var(--border);
         border-radius: 8px;
         color: var(--text);
-        padding: 8px 10px;
+        padding: 7px 9px;
         font: inherit;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
       }
-      textarea {
-        min-height: 72px;
-        resize: vertical;
-        line-height: 1.35;
-      }
-      .row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-      }
+      textarea { min-height: 64px; resize: vertical; line-height: 1.35; }
       .color-row {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 10px;
-      }
-      .color-row input[type="color"] {
-        width: 40px;
-        height: 32px;
-        border: none;
-        padding: 0;
-        background: none;
-        cursor: pointer;
-      }
-      .color-row span {
-        font-size: 0.8rem;
-        color: var(--muted);
-        flex: 1;
-      }
-      .presets {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-bottom: 10px;
-      }
-      .presets button {
-        font-size: 0.75rem;
-        padding: 6px 10px;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        background: #0d1218;
-        color: var(--text);
-        cursor: pointer;
-      }
-      .presets button:hover {
-        border-color: var(--accent);
-      }
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 12px;
-      }
-      .btn {
-        border: none;
-        border-radius: 8px;
-        padding: 10px 16px;
-        font: inherit;
-        font-weight: 600;
-        cursor: pointer;
-      }
-      .btn-primary {
-        background: var(--accent);
-        color: #fff;
-      }
-      .btn-secondary {
-        background: #0d1218;
-        color: var(--text);
-        border: 1px solid var(--border);
-      }
-      .preview-wrap {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 12px;
-      }
-      .preview-box {
-        background: #000;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-        max-width: 100%;
-      }
-      canvas {
-        display: block;
-        max-width: 100%;
-        height: auto;
-      }
-      .hint {
-        font-size: 0.8rem;
-        color: var(--muted);
-        text-align: center;
-        max-width: 520px;
-        line-height: 1.45;
-      }
-      input[type="file"] {
-        font-size: 0.8rem;
-        color: var(--muted);
         margin-bottom: 8px;
       }
+      .color-row input[type="color"] {
+        width: 36px; height: 28px; border: none; padding: 0; background: none; cursor: pointer;
+      }
+      .color-row span { font-size: 0.78rem; color: var(--muted); flex: 1; }
+      .tpl-tabs { display: flex; flex-direction: column; gap: 6px; }
+      .tpl-tabs button {
+        text-align: left;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #0d1218;
+        color: var(--text);
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.85rem;
+      }
+      .tpl-tabs button.active { border-color: var(--accent); background: #152238; }
+      .tpl-tabs button small { display: block; color: var(--muted); font-size: 0.75rem; margin-top: 2px; }
+      .field-group { display: none; }
+      .field-group.visible { display: block; }
+      .card-edit { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px; }
+      .card-edit b { font-size: 0.75rem; color: var(--accent); }
+      .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+      .btn {
+        border: none; border-radius: 8px; padding: 10px 16px;
+        font: inherit; font-weight: 600; cursor: pointer;
+      }
+      .btn-primary { background: var(--accent); color: #fff; }
+      .btn-secondary { background: #0d1218; color: var(--text); border: 1px solid var(--border); }
+      .preview-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+      .preview-box {
+        background: #111;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+        max-width: 100%;
+      }
+      canvas { display: block; max-width: 100%; height: auto; }
+      .hint { font-size: 0.78rem; color: var(--muted); max-width: 640px; line-height: 1.45; text-align: center; }
+      input[type="file"] { font-size: 0.78rem; color: var(--muted); margin-bottom: 8px; }
+      input[type="range"] { width: 100%; margin-bottom: 8px; }
     </style>
   </head>
   <body>
     <div class="layout">
       <aside>
-        <h1>Баннер для Авито</h1>
-        <p class="sub">
-          Текст поверх фона через Canvas — цвет шрифта меняется мгновенно.
-          Скачайте PNG и загрузите первым фото в объявление.
-        </p>
+        <h1>Шаблоны для Авито</h1>
+        <p class="sub">3 макета по вашим примерам. Меняйте текст и цвета — скачивайте PNG.</p>
 
         <div class="panel">
-          <h2>Пресеты текста</h2>
-          <div class="presets">
-            <button type="button" data-preset="short">Короткий</button>
-            <button type="button" data-preset="alt">Альтернативный</button>
-            <button type="button" data-preset="minimal">Минимум</button>
+          <h2>Макет</h2>
+          <div class="tpl-tabs">
+            <button type="button" class="active" data-tpl="hero">
+              1. Срочный выкуп + фото
+              <small>Белый фон, иконки, человек справа</small>
+            </button>
+            <button type="button" data-tpl="speed">
+              2. Выкуп через 1 час
+              <small>Красный акцент, список, план справа</small>
+            </button>
+            <button type="button" data-tpl="grid">
+              3. С какими квартирами
+              <small>Сетка карточек 2×3</small>
+            </button>
           </div>
         </div>
 
         <div class="panel">
           <h2>Размер</h2>
           <select id="size">
-            <option value="1080x1080">1080×1080 (квадрат)</option>
+            <option value="1280x720">1280×720 (широкий)</option>
             <option value="1280x960">1280×960 (4:3)</option>
-            <option value="1080x1350">1080×1350 (вертикаль)</option>
+            <option value="1080x1080">1080×1080 (квадрат)</option>
           </select>
         </div>
 
-        <div class="panel">
-          <h2>Текст</h2>
-          <label for="title">Заголовок</label>
-          <input type="text" id="title" />
-          <label for="subtitle">Подзаголовок</label>
-          <input type="text" id="subtitle" />
-          <label for="bullets">Пункты (каждый с новой строки)</label>
-          <textarea id="bullets"></textarea>
-          <label for="footer">Низ (призыв)</label>
-          <input type="text" id="footer" />
-          <label for="badge">Плашка (верхний угол)</label>
-          <input type="text" id="badge" placeholder="1–3 дня" />
+        <!-- Template 1 fields -->
+        <div class="panel field-group visible" id="fields-hero">
+          <h2>Текст (макет 1)</h2>
+          <label>Заголовок строка 1</label>
+          <input type="text" id="h1-line1" value="СРОЧНЫЙ ВЫКУП КВАРТИР" />
+          <label>Заголовок строка 2</label>
+          <input type="text" id="h1-line2" value="И НЕДВИЖИМОСТИ" />
+          <label>Локация</label>
+          <input type="text" id="h1-location" value="В МОСКВЕ И МОСКОВСКОЙ ОБЛАСТИ" />
+          <label>Пункты (каждый с новой строки)</label>
+          <textarea id="h1-bullets">аванс в день обращения
+выкуп за 2 дня
+закроем все долги перед ЖКУ, банками и приставами
+подготовим полный пакет документов для сделки</textarea>
+          <label>Фото справа</label>
+          <input type="file" id="h1-photo" accept="image/*" />
+        </div>
+
+        <!-- Template 2 fields -->
+        <div class="panel field-group" id="fields-speed">
+          <h2>Текст (макет 2)</h2>
+          <label>Заголовок (до акцента)</label>
+          <input type="text" id="h2-head" value="ВЫКУП ЧЕРЕЗ" />
+          <label>Акцент в блоке</label>
+          <input type="text" id="h2-accent" value="1 ЧАС" />
+          <label>Подзаголовок строка 1</label>
+          <input type="text" id="h2-sub1" value="ЦЕНА УСЛУГИ КАК И КОНСУЛЬТАЦИЯ" />
+          <label>Подзаголовок строка 2 (красный)</label>
+          <input type="text" id="h2-sub2" value="АБСОЛЮТНО БЕСПЛАТНО" />
+          <label>Пункты</label>
+          <textarea id="h2-bullets">выкупаем квартиры сами / и за свои средства
+даем объективную оценку стоимости / недвижимости (до 95% от рынка)
+все документы остаются / у вас на руках
+помогаем в процессе сбора / и подготовки документов</textarea>
+          <label>Картинка справа (план квартиры)</label>
+          <input type="file" id="h2-photo" accept="image/*" />
+        </div>
+
+        <!-- Template 3 fields -->
+        <div class="panel field-group" id="fields-grid">
+          <h2>Текст (макет 3)</h2>
+          <label>Заголовок</label>
+          <input type="text" id="h3-title" value="С КАКИМИ КВАРТИРАМИ МЫ РАБОТАЕМ" />
+          <div id="h3-cards"></div>
         </div>
 
         <div class="panel">
-          <h2>Цвета шрифта</h2>
+          <h2>Цвета</h2>
           <div class="color-row">
-            <input type="color" id="titleColor" value="#ffffff" />
-            <span>Заголовок</span>
+            <input type="color" id="c-navy" value="#001a33" />
+            <span>Тёмно-синий (заголовки)</span>
           </div>
           <div class="color-row">
-            <input type="color" id="subtitleColor" value="#ffe082" />
-            <span>Подзаголовок</span>
+            <input type="color" id="c-gold" value="#c59246" />
+            <span>Золотой (иконки, рамки)</span>
           </div>
           <div class="color-row">
-            <input type="color" id="textColor" value="#e8edf5" />
+            <input type="color" id="c-red" value="#8b0000" />
+            <span>Красный акцент</span>
+          </div>
+          <div class="color-row">
+            <input type="color" id="c-green" value="#004d2c" />
+            <span>Зелёный (заголовки карточек)</span>
+          </div>
+          <div class="color-row">
+            <input type="color" id="c-cream" value="#fdf5e6" />
+            <span>Кремовый фон (макет 3)</span>
+          </div>
+          <div class="color-row">
+            <input type="color" id="c-body" value="#1a1a1a" />
             <span>Основной текст</span>
-          </div>
-          <div class="color-row">
-            <input type="color" id="accentColor" value="#4ade80" />
-            <span>Акцент / галочки</span>
-          </div>
-          <div class="color-row">
-            <input type="color" id="badgeColor" value="#ffffff" />
-            <span>Текст плашки</span>
-          </div>
-        </div>
-
-        <div class="panel">
-          <h2>Фон</h2>
-          <label for="bgPreset">Градиент</label>
-          <select id="bgPreset">
-            <option value="navy">Тёмно-синий (недвижимость)</option>
-            <option value="green">Зелёный (доверие)</option>
-            <option value="gold">Золотой (премиум)</option>
-            <option value="red">Красный (срочность)</option>
-            <option value="photo">Своё фото</option>
-          </select>
-          <div id="photoUpload" hidden>
-            <label for="bgFile">Загрузить фото</label>
-            <input type="file" id="bgFile" accept="image/*" />
-            <label for="overlay">Затемнение поверх фото</label>
-            <input type="range" id="overlay" min="0" max="90" value="55" />
           </div>
         </div>
 
@@ -272,131 +222,411 @@
       </aside>
 
       <main class="preview-wrap">
-        <div class="preview-box">
-          <canvas id="c"></canvas>
-        </div>
+        <div class="preview-box"><canvas id="c"></canvas></div>
         <p class="hint">
-          Совет: для фона сгенерируйте фото через GenerateImage в Cursor, сохраните
-          в проект и загрузите здесь («Своё фото»). Текст и цвета правьте в панели
-          слева — на картинке они всегда читаемые.
+          Загрузите своё фото человека (макет 1) или план квартиры (макет 2).
+          По умолчанию подставлены примеры из ваших образцов.
         </p>
       </main>
     </div>
 
     <script>
-      var PRESETS = {
-        short: {
-          title: "Срочный выкуп квартир",
-          subtitle: "Москва и МО — деньги за 1–3 дня",
-          bullets:
-            "Ипотека · долги · аресты ФССП\nДо 90% рыночной цены\nСделка от 1 дня, без риелторов\nАванс в день обращения",
-          footer: "Звоните или пишите в чат Авито",
-          badge: "1–3 дня",
-        },
-        alt: {
-          title: "Выкуп квартир в Москве и МО",
-          subtitle: "Быстро, легально, без ожидания",
-          bullets:
-            "Собственные деньги — не ждём банк\nЮрист и документы «под ключ»\nИпотека, приставы, торги\nКомиссий нет",
-          footer: "Работаем каждый день без выходных",
-          badge: "Аванс сегодня",
-        },
-        minimal: {
-          title: "Купим вашу квартиру",
-          subtitle: "Москва · область до 90 км от МКАД",
-          bullets: "Сложные случаи\nДеньги от 1 дня",
-          footer: "Бесплатная консультация юриста",
-          badge: "Срочно",
-        },
-      };
+      var GRID_CARDS = [
+        { title: "КВАРТИРЫ В ЗАЛОГЕ", body: "Погасим ипотеку сами — вы получите остаток денег на руки" },
+        { title: "РАЗДЕЛ ПРИ РАЗВОДЕ", body: "Выкупаем даже доли при разводе — без долгих судов и ожидания" },
+        { title: "С ДОЛГАМИ ЖКХ", body: "Погасим все долги и возобновим работу отключенных коммуникаций" },
+        { title: "В ПЛОХОМ СОСТОЯНИИ", body: "Выкупаем после пожара, затопления или просто при запущенном состоянии и отсутствии ремонта" },
+        { title: "С НАЛОЖЕННЫМ АРЕСТОМ", body: "Выкупаем квартиры с торгов по банкротству в кратчайшие сроки" },
+        { title: "НЕ ПРИВАТИЗИРОВАНА", body: "Поможем с приватизацией и сразу выкупим квартиру" },
+      ];
 
-      var GRADIENTS = {
-        navy: ["#0a1628", "#1a3a5c", "#0d2840"],
-        green: ["#0a2018", "#1a4a32", "#0d3020"],
-        gold: ["#1a1408", "#4a3a18", "#2a2010"],
-        red: ["#280a0a", "#5c1a1a", "#301010"],
-      };
-
+      var currentTpl = "hero";
       var canvas = document.getElementById("c");
       var ctx = canvas.getContext("2d");
-      var bgImage = null;
+      var imgHero = new Image();
+      var imgSpeed = null;
+      var imgSpeedCustom = false;
+      imgHero.src = "assets/default-person.jpg";
+
+      function $(id) { return document.getElementById(id); }
+      function val(id) { return $(id).value; }
+      function color(id) { return val(id); }
 
       function parseSize() {
-        var v = document.getElementById("size").value.split("x");
-        return { w: +v[0], h: +v[1] };
+        var p = val("size").split("x");
+        return { w: +p[0], h: +p[1] };
       }
 
-      function getVal(id) {
-        return document.getElementById(id).value;
-      }
-
-      function wrapLines(text, maxWidth, font) {
+      function wrapText(text, maxW, font) {
         ctx.font = font;
         var words = text.split(/\s+/);
         var lines = [];
         var line = "";
         for (var i = 0; i < words.length; i++) {
-          var test = line ? line + " " + words[i] : words[i];
-          if (ctx.measureText(test).width > maxWidth && line) {
+          var t = line ? line + " " + words[i] : words[i];
+          if (ctx.measureText(t).width > maxW && line) {
             lines.push(line);
             line = words[i];
-          } else {
-            line = test;
-          }
+          } else line = t;
         }
         if (line) lines.push(line);
         return lines;
       }
 
-      function drawBackground(w, h) {
-        var preset = getVal("bgPreset");
-        if (preset === "photo" && bgImage) {
-          var ir = bgImage.width / bgImage.height;
-          var cr = w / h;
-          var sx, sy, sw, sh;
-          if (ir > cr) {
-            sh = bgImage.height;
-            sw = sh * cr;
-            sx = (bgImage.width - sw) / 2;
-            sy = 0;
-          } else {
-            sw = bgImage.width;
-            sh = sw / cr;
-            sx = 0;
-            sy = (bgImage.height - sh) / 2;
-          }
-          ctx.drawImage(bgImage, sx, sy, sw, sh, 0, 0, w, h);
-          var ov = +getVal("overlay") / 100;
-          ctx.fillStyle = "rgba(0,0,0," + ov + ")";
-          ctx.fillRect(0, 0, w, h);
-          return;
+      function drawGoldLine(x1, y1, x2, y2) {
+        ctx.strokeStyle = color("c-gold");
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+
+      function drawIconWallet(x, y, s) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(s, s);
+        ctx.strokeStyle = color("c-gold");
+        ctx.fillStyle = color("c-gold");
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-14, -6, 28, 18);
+        ctx.beginPath();
+        ctx.arc(-14, 3, 6, Math.PI / 2, Math.PI * 1.5);
+        ctx.stroke();
+        ctx.fillRect(4, -14, 6, 10);
+        ctx.fillRect(10, -12, 4, 8);
+        ctx.restore();
+      }
+
+      function drawIconBuilding(x, y, s) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(s, s);
+        ctx.fillStyle = color("c-gold");
+        ctx.fillRect(-12, -4, 10, 22);
+        ctx.fillRect(2, -10, 10, 28);
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        for (var r = 0; r < 3; r++) {
+          ctx.fillRect(-9, 0 + r * 6, 4, 3);
+          ctx.fillRect(5, -6 + r * 6, 4, 3);
         }
-        var g = GRADIENTS[preset] || GRADIENTS.navy;
-        var grad = ctx.createLinearGradient(0, 0, w, h);
-        grad.addColorStop(0, g[0]);
-        grad.addColorStop(0.55, g[1]);
-        grad.addColorStop(1, g[2]);
-        ctx.fillStyle = grad;
+        ctx.restore();
+      }
+
+      function drawIconBank(x, y, s) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(s, s);
+        ctx.strokeStyle = color("c-gold");
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-14, 8);
+        ctx.lineTo(14, 8);
+        ctx.lineTo(10, -8);
+        ctx.lineTo(-10, -8);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.fillStyle = color("c-gold");
+        ctx.beginPath();
+        ctx.arc(0, -2, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawIconDoc(x, y, s) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(s, s);
+        ctx.strokeStyle = color("c-gold");
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-10, -12, 20, 24);
+        ctx.beginPath();
+        ctx.arc(0, 2, 7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = color("c-gold");
+        ctx.beginPath();
+        ctx.moveTo(-3, 2);
+        ctx.lineTo(0, 5);
+        ctx.lineTo(5, -2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      var HERO_ICONS = [drawIconWallet, drawIconBuilding, drawIconBank, drawIconDoc];
+
+      function drawCheck(x, y, r) {
+        ctx.fillStyle = color("c-red");
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(x - r * 0.35, y);
+        ctx.lineTo(x - r * 0.05, y + r * 0.35);
+        ctx.lineTo(x + r * 0.45, y - r * 0.35);
+        ctx.stroke();
+      }
+
+      function drawCardBadge(x, y) {
+        ctx.fillStyle = color("c-gold");
+        ctx.beginPath();
+        ctx.arc(x, y, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x - 5, y);
+        ctx.lineTo(x - 1, y + 4);
+        ctx.lineTo(x + 6, y - 4);
+        ctx.stroke();
+      }
+
+      function drawFloorPlan(x, y, size) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(-0.15);
+        var u = size / 200;
+        ctx.fillStyle = "#e8e4dc";
+        ctx.strokeStyle = "#888";
+        ctx.lineWidth = 2 * u;
+        function room(rx, ry, rw, rh, col) {
+          ctx.fillStyle = col;
+          ctx.fillRect(rx * u, ry * u, rw * u, rh * u);
+          ctx.strokeRect(rx * u, ry * u, rw * u, rh * u);
+        }
+        room(0, 0, 90, 70, "#d4cfc4");
+        room(90, 0, 70, 70, "#c8d8e8");
+        room(0, 70, 60, 80, "#e8dcc8");
+        room(60, 70, 100, 50, "#d8e0d0");
+        room(60, 120, 50, 30, "#c0d0e0");
+        ctx.fillStyle = "#8b7355";
+        ctx.fillRect(20 * u, 30 * u, 18 * u, 10 * u);
+        ctx.fillRect(110 * u, 25 * u, 24 * u, 12 * u);
+        ctx.fillStyle = "#6a8090";
+        ctx.fillRect(75 * u, 85 * u, 30 * u, 18 * u);
+        ctx.restore();
+      }
+
+      function coverImage(img, dx, dy, dw, dh) {
+        if (!img || !img.complete || !img.naturalWidth) return;
+        var ir = img.width / img.height;
+        var cr = dw / dh;
+        var sx, sy, sw, sh;
+        if (ir > cr) {
+          sh = img.height; sw = sh * cr;
+          sx = (img.width - sw) / 2; sy = 0;
+        } else {
+          sw = img.width; sh = sw / cr;
+          sx = 0; sy = (img.height - sh) / 2;
+        }
+        ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+      }
+
+      function renderHero(w, h) {
+        ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, w, h);
-        ctx.fillStyle = "rgba(255,255,255,0.03)";
-        for (var i = 0; i < 12; i++) {
-          ctx.fillRect(0, (h / 12) * i, w, 1);
+
+        var pad = w * 0.05;
+        var leftW = w * 0.58;
+        var navy = color("c-navy");
+        var body = color("c-body");
+        var y = pad;
+
+        var titleSize = Math.round(w * 0.048);
+        ctx.font = "800 " + titleSize + "px Arial Narrow, Arial, sans-serif";
+        ctx.fillStyle = navy;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        [val("h1-line1"), val("h1-line2")].forEach(function (line) {
+          ctx.fillText(line, pad, y);
+          y += titleSize * 1.08;
+        });
+        y += 8;
+
+        var locSize = Math.round(w * 0.028);
+        ctx.font = "700 " + locSize + "px Arial, sans-serif";
+        ctx.fillStyle = navy;
+        ctx.beginPath();
+        ctx.moveTo(pad + 8, y + locSize * 0.7);
+        ctx.bezierCurveTo(pad + 8, y, pad + 18, y, pad + 18, y + locSize * 0.5);
+        ctx.bezierCurveTo(pad + 18, y + locSize, pad + 8, y + locSize * 1.1, pad + 8, y + locSize * 1.1);
+        ctx.bezierCurveTo(pad + 2, y + locSize * 1.1, pad + 2, y + locSize * 0.4, pad + 8, y + locSize * 0.7);
+        ctx.fill();
+        ctx.fillText(val("h1-location"), pad + 26, y);
+        y += locSize * 2;
+
+        var bullets = val("h1-bullets").split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+        var bulletSize = Math.round(w * 0.024);
+        ctx.font = "400 " + bulletSize + "px Arial, sans-serif";
+        for (var i = 0; i < bullets.length; i++) {
+          var iconFn = HERO_ICONS[i % HERO_ICONS.length];
+          iconFn(pad + 18, y + bulletSize * 0.6, 1.1);
+          ctx.fillStyle = body;
+          var bl = wrapText(bullets[i], leftW - pad - 50, ctx.font);
+          var by = y;
+          for (var j = 0; j < bl.length; j++) {
+            ctx.fillText(bl[j], pad + 42, by);
+            by += bulletSize * 1.35;
+          }
+          y = by + bulletSize * 0.8;
+        }
+
+        var photoX = leftW;
+        var photoW = w - photoX;
+        coverImage(imgHero, photoX, 0, photoW, h);
+
+        drawGoldLine(photoX + 20, h * 0.55, w - 30, h * 0.72);
+        drawGoldLine(photoX + 40, h * 0.62, w - 50, h * 0.78);
+      }
+
+      function renderSpeed(w, h) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+
+        var pad = w * 0.05;
+        var navy = color("c-navy");
+        var red = color("c-red");
+        var body = color("c-body");
+        var y = pad;
+
+        var headSize = Math.round(w * 0.065);
+        ctx.font = "800 " + headSize + "px Arial Narrow, Arial, sans-serif";
+        ctx.fillStyle = navy;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        var head1 = val("h2-head");
+        ctx.fillText(head1, pad, y);
+        var hw = ctx.measureText(head1).width + 12;
+        var accent = val("h2-accent");
+        var accentW = ctx.measureText(accent).width + 28;
+        ctx.fillStyle = red;
+        ctx.fillRect(pad + hw, y - 4, accentW, headSize + 10);
+        ctx.fillStyle = "#fff";
+        ctx.fillText(accent, pad + hw + 14, y);
+        y += headSize + 20;
+
+        drawIconWallet(pad + 16, y + 18, 1.2);
+        var subSize = Math.round(w * 0.026);
+        ctx.font = "700 " + subSize + "px Arial, sans-serif";
+        ctx.fillStyle = navy;
+        ctx.fillText(val("h2-sub1"), pad + 38, y);
+        y += subSize * 1.2;
+        ctx.fillStyle = red;
+        ctx.fillText(val("h2-sub2"), pad + 38, y);
+        y += subSize * 2.2;
+
+        var bullets = val("h2-bullets").split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+        var bSize = Math.round(w * 0.022);
+        ctx.font = "400 " + bSize + "px Arial, sans-serif";
+        var leftMax = w * 0.52;
+        for (var i = 0; i < bullets.length; i++) {
+          drawCheck(pad + 14, y + bSize * 0.5, 12);
+          ctx.fillStyle = body;
+          var bl = wrapText(bullets[i], leftMax - pad - 36, ctx.font);
+          for (var j = 0; j < bl.length; j++) {
+            ctx.fillText(bl[j], pad + 34, y);
+            y += bSize * 1.4;
+          }
+          y += bSize * 0.5;
+        }
+
+        var cx = w * 0.78;
+        var cy = h * 0.62;
+        ctx.fillStyle = red;
+        ctx.beginPath();
+        ctx.arc(cx, cy, h * 0.32, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.save();
+        ctx.strokeStyle = red;
+        ctx.lineWidth = 3;
+        ctx.translate(cx, cy);
+        ctx.rotate(-0.2);
+        var d = h * 0.38;
+        ctx.strokeRect(-d / 2, -d / 2, d, d);
+        ctx.restore();
+
+        var imgX = w * 0.52;
+        var imgW = w * 0.46;
+        var imgH = h * 0.85;
+        if (imgSpeedCustom && imgSpeed) {
+          ctx.save();
+          ctx.globalAlpha = 0.95;
+          coverImage(imgSpeed, imgX, h - imgH + 20, imgW, imgH);
+          ctx.restore();
+        } else {
+          drawFloorPlan(imgX + imgW * 0.35, h * 0.58, h * 0.55);
         }
       }
 
-      function drawBadge(text, color, bg, x, y, padX, padY) {
-        ctx.font = "bold 28px Segoe UI, system-ui, sans-serif";
-        var tw = ctx.measureText(text).width;
-        var bw = tw + padX * 2;
-        var bh = 28 + padY * 2;
-        ctx.fillStyle = bg;
-        roundRect(x, y, bw, bh, 10);
-        ctx.fill();
-        ctx.fillStyle = color;
-        ctx.textAlign = "left";
-        ctx.textBaseline = "middle";
-        ctx.fillText(text, x + padX, y + bh / 2);
-        return bh;
+      function renderGrid(w, h) {
+        ctx.fillStyle = color("c-cream");
+        ctx.fillRect(0, 0, w, h);
+
+        var pad = w * 0.05;
+        var titleSize = Math.round(w * 0.042);
+        ctx.font = "800 " + titleSize + "px Arial, sans-serif";
+        ctx.fillStyle = color("c-navy");
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        var titleLines = wrapText(val("h3-title"), w - pad * 2, ctx.font);
+        var y = pad;
+        titleLines.forEach(function (l) {
+          ctx.fillText(l, w / 2, y);
+          y += titleSize * 1.15;
+        });
+        y += pad * 0.6;
+
+        var cols = 2;
+        var rows = 3;
+        var gap = w * 0.025;
+        var cardW = (w - pad * 2 - gap) / cols;
+        var cardH = (h - y - pad - gap * (rows - 1)) / rows;
+        var cardTitleSize = Math.round(w * 0.022);
+        var cardBodySize = Math.round(w * 0.018);
+
+        for (var i = 0; i < 6; i++) {
+          var col = i % cols;
+          var row = Math.floor(i / cols);
+          var cx = pad + col * (cardW + gap);
+          var cy = y + row * (cardH + gap);
+          var card = GRID_CARDS[i];
+          var titleIn = $("h3-card-title-" + i);
+          var bodyIn = $("h3-card-body-" + i);
+          var ct = titleIn ? titleIn.value : card.title;
+          var cb = bodyIn ? bodyIn.value : card.body;
+
+          ctx.fillStyle = "rgba(255,255,255,0.35)";
+          roundRect(cx, cy, cardW, cardH, 14);
+          ctx.fill();
+          ctx.strokeStyle = color("c-gold");
+          ctx.lineWidth = 2;
+          roundRect(cx, cy, cardW, cardH, 14);
+          ctx.stroke();
+
+          drawCardBadge(cx + cardW - 18, cy + 4);
+
+          var tx = cx + 16;
+          var ty = cy + 22;
+          ctx.textAlign = "left";
+          ctx.font = "700 " + cardTitleSize + "px Arial, sans-serif";
+          ctx.fillStyle = color("c-green");
+          var tl = wrapText(ct, cardW - 32, ctx.font);
+          tl.forEach(function (l) {
+            ctx.fillText(l, tx, ty);
+            ty += cardTitleSize * 1.2;
+          });
+          ty += 6;
+          ctx.font = "400 " + cardBodySize + "px Arial, sans-serif";
+          ctx.fillStyle = color("c-body");
+          var bl = wrapText(cb, cardW - 32, ctx.font);
+          bl.forEach(function (l) {
+            ctx.fillText(l, tx, ty);
+            ty += cardBodySize * 1.35;
+          });
+        }
       }
 
       function roundRect(x, y, w, h, r) {
@@ -414,176 +644,86 @@
       }
 
       function render() {
-        var size = parseSize();
-        var w = size.w;
-        var h = size.h;
-        canvas.width = w;
-        canvas.height = h;
-
-        drawBackground(w, h);
-
-        var pad = Math.round(w * 0.07);
-        var maxW = w - pad * 2;
-        var y = pad + 8;
-
-        var badge = getVal("badge").trim();
-        if (badge) {
-          var badgeH = drawBadge(
-            badge,
-            getVal("badgeColor"),
-            "rgba(59,130,246,0.92)",
-            pad,
-            y,
-            18,
-            10
-          );
-          y += badgeH + 20;
-        }
-
-        var titleColor = getVal("titleColor");
-        var titleSize = Math.round(w * 0.058);
-        ctx.font = "800 " + titleSize + "px Segoe UI, system-ui, sans-serif";
-        ctx.fillStyle = titleColor;
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
-        ctx.shadowColor = "rgba(0,0,0,0.45)";
-        ctx.shadowBlur = 8;
-        ctx.shadowOffsetY = 2;
-
-        var titleLines = wrapLines(getVal("title"), maxW, ctx.font);
-        for (var t = 0; t < titleLines.length; t++) {
-          ctx.fillText(titleLines[t], pad, y);
-          y += titleSize * 1.12;
-        }
-        ctx.shadowBlur = 0;
-        y += 8;
-
-        var subSize = Math.round(w * 0.034);
-        ctx.font = "600 " + subSize + "px Segoe UI, system-ui, sans-serif";
-        ctx.fillStyle = getVal("subtitleColor");
-        var subLines = wrapLines(getVal("subtitle"), maxW, ctx.font);
-        for (var s = 0; s < subLines.length; s++) {
-          ctx.fillText(subLines[s], pad, y);
-          y += subSize * 1.35;
-        }
-        y += 16;
-
-        ctx.strokeStyle = "rgba(255,255,255,0.2)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(pad, y);
-        ctx.lineTo(pad + maxW * 0.35, y);
-        ctx.stroke();
-        y += 20;
-
-        var bulletSize = Math.round(w * 0.028);
-        ctx.font = "500 " + bulletSize + "px Segoe UI, system-ui, sans-serif";
-        var accent = getVal("accentColor");
-        var textColor = getVal("textColor");
-        var bullets = getVal("bullets")
-          .split("\n")
-          .map(function (l) {
-            return l.trim();
-          })
-          .filter(Boolean);
-
-        for (var b = 0; b < bullets.length; b++) {
-          ctx.fillStyle = accent;
-          ctx.font = "700 " + (bulletSize + 2) + "px Segoe UI, sans-serif";
-          ctx.fillText("✓", pad, y);
-          ctx.fillStyle = textColor;
-          ctx.font = "500 " + bulletSize + "px Segoe UI, system-ui, sans-serif";
-          var bl = wrapLines(bullets[b], maxW - 36, ctx.font);
-          for (var j = 0; j < bl.length; j++) {
-            ctx.fillText(bl[j], pad + 32, y);
-            y += bulletSize * 1.45;
-          }
-          y += 6;
-        }
-
-        var footer = getVal("footer").trim();
-        if (footer) {
-          var footSize = Math.round(w * 0.03);
-          y = h - pad - footSize * 1.5;
-          ctx.font = "700 " + footSize + "px Segoe UI, system-ui, sans-serif";
-          ctx.fillStyle = titleColor;
-          var fl = wrapLines(footer, maxW, ctx.font);
-          for (var f = 0; f < fl.length; f++) {
-            ctx.fillText(fl[f], pad, y);
-            y += footSize * 1.3;
-          }
-        }
-
-        ctx.fillStyle = "rgba(255,255,255,0.35)";
-        ctx.font = "400 18px Segoe UI, sans-serif";
-        ctx.textAlign = "right";
-        ctx.fillText("Москва · МО", w - pad, h - pad);
+        var s = parseSize();
+        canvas.width = s.w;
+        canvas.height = s.h;
+        if (currentTpl === "hero") renderHero(s.w, s.h);
+        else if (currentTpl === "speed") renderSpeed(s.w, s.h);
+        else renderGrid(s.w, s.h);
       }
 
-      function applyPreset(name) {
-        var p = PRESETS[name];
-        if (!p) return;
-        document.getElementById("title").value = p.title;
-        document.getElementById("subtitle").value = p.subtitle;
-        document.getElementById("bullets").value = p.bullets;
-        document.getElementById("footer").value = p.footer;
-        document.getElementById("badge").value = p.badge;
+      function buildGridFields() {
+        var box = $("h3-cards");
+        box.innerHTML = "";
+        GRID_CARDS.forEach(function (card, i) {
+          var div = document.createElement("div");
+          div.className = "card-edit";
+          div.innerHTML =
+            "<b>Карточка " + (i + 1) + "</b>" +
+            '<label>Заголовок</label><input type="text" id="h3-card-title-' + i + '" value="' + card.title.replace(/"/g, "&quot;") + '">' +
+            '<label>Текст</label><textarea id="h3-card-body-' + i + '">' + card.body + "</textarea>";
+          box.appendChild(div);
+          div.querySelectorAll("input,textarea").forEach(function (el) {
+            el.addEventListener("input", render);
+          });
+        });
+      }
+
+      function setTemplate(tpl) {
+        currentTpl = tpl;
+        document.querySelectorAll(".tpl-tabs button").forEach(function (b) {
+          b.classList.toggle("active", b.getAttribute("data-tpl") === tpl);
+        });
+        ["hero", "speed", "grid"].forEach(function (t) {
+          $("fields-" + t).classList.toggle("visible", t === tpl);
+        });
         render();
       }
 
-      function download() {
-        render();
-        var a = document.createElement("a");
-        a.download = "avito-banner-" + document.getElementById("size").value + ".png";
-        a.href = canvas.toDataURL("image/png");
-        a.click();
-      }
-
-      document.querySelectorAll("[data-preset]").forEach(function (btn) {
+      document.querySelectorAll(".tpl-tabs button").forEach(function (btn) {
         btn.addEventListener("click", function () {
-          applyPreset(btn.getAttribute("data-preset"));
+          setTemplate(btn.getAttribute("data-tpl"));
         });
       });
 
-      document.getElementById("bgPreset").addEventListener("change", function () {
-        document.getElementById("photoUpload").hidden = this.value !== "photo";
+      $("h1-photo").addEventListener("change", function (e) {
+        var f = e.target.files[0];
+        if (!f) return;
+        imgHero.onload = render;
+        imgHero.src = URL.createObjectURL(f);
+      });
+
+      $("h2-photo").addEventListener("change", function (e) {
+        var f = e.target.files[0];
+        if (!f) return;
+        imgSpeed = new Image();
+        imgSpeedCustom = true;
+        imgSpeed.onload = render;
+        imgSpeed.src = URL.createObjectURL(f);
+      });
+
+      ["size", "h1-line1", "h1-line2", "h1-location", "h1-bullets",
+       "h2-head", "h2-accent", "h2-sub1", "h2-sub2", "h2-bullets", "h3-title",
+       "c-navy", "c-gold", "c-red", "c-green", "c-cream", "c-body"].forEach(function (id) {
+        var el = $(id);
+        if (el) {
+          el.addEventListener("input", render);
+          el.addEventListener("change", render);
+        }
+      });
+
+      $("download").addEventListener("click", function () {
         render();
+        var a = document.createElement("a");
+        a.download = "avito-" + currentTpl + "-" + val("size") + ".png";
+        a.href = canvas.toDataURL("image/png");
+        a.click();
       });
+      $("refresh").addEventListener("click", render);
 
-      document.getElementById("bgFile").addEventListener("change", function (e) {
-        var file = e.target.files[0];
-        if (!file) return;
-        var img = new Image();
-        img.onload = function () {
-          bgImage = img;
-          render();
-        };
-        img.src = URL.createObjectURL(file);
-      });
-
-      [
-        "title",
-        "subtitle",
-        "bullets",
-        "footer",
-        "badge",
-        "size",
-        "titleColor",
-        "subtitleColor",
-        "textColor",
-        "accentColor",
-        "badgeColor",
-        "bgPreset",
-        "overlay",
-      ].forEach(function (id) {
-        document.getElementById(id).addEventListener("input", render);
-        document.getElementById(id).addEventListener("change", render);
-      });
-
-      document.getElementById("download").addEventListener("click", download);
-      document.getElementById("refresh").addEventListener("click", render);
-
-      applyPreset("short");
+      imgHero.onload = render;
+      buildGridFields();
+      setTemplate("hero");
     </script>
   </body>
 </html>
